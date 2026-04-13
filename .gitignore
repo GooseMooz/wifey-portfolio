@@ -5,6 +5,9 @@ node_modules/
 .next/
 out/
 
+.git/
+.claude/
+
 # Contact form submissions (keep locally, not in git)
 data/
 
