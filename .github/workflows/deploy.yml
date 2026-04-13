@@ -17,16 +17,16 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -e
-            cd /opt/portfolio
+            cd /wifey-portfolio
             git pull origin main
             docker build -t portfolio .
             docker stop portfolio 2>/dev/null || true
             docker rm   portfolio 2>/dev/null || true
-            mkdir -p /opt/portfolio/data
+            mkdir -p /wifey-portfolio/data
             docker run -d \
               --name portfolio \
               --restart unless-stopped \
               -p 7070:3000 \
-              -v /opt/portfolio/data:/app/data \
+              -v /wifey-portfolio/data:/app/data \
               portfolio
             docker image prune -f
