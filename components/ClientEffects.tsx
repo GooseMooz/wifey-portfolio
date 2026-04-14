@@ -12,6 +12,8 @@ export default function ClientEffects() {
 
   // Velocity-squish cursor + hover grow + idle fade
   useEffect(() => {
+    if (!window.matchMedia('(pointer: fine)').matches) return
+
     const blob = blobRef.current
     if (!blob) return
 

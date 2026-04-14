@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useLayoutEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import type { CSSProperties } from 'react'
 import type { AlbumData } from '@/lib/albums'
 
@@ -34,6 +35,7 @@ type Props = {
 }
 
 export default function Hero({ albums }: Props) {
+  const router = useRouter()
   const heroRef     = useRef<HTMLElement>(null)
   const albumRefs   = useRef<(HTMLDivElement | null)[]>([])
   const previewRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -45,6 +47,11 @@ export default function Hero({ albums }: Props) {
   const [anchorIdx,  setAnchorIdx]  = useState<number | null>(null)
   const [slotOrder,  setSlotOrder]  = useState<number[]>([])
   const [pageLoaded, setPageLoaded] = useState(false)
+
+  const shouldDirectOpenAlbum = useCallback(() => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia('(max-width: 768px), (hover: none), (pointer: coarse)').matches
+  }, [])
 
   const open = useCallback((idx: number) => {
     if (phase !== 'idle') return
@@ -91,6 +98,18 @@ export default function Hero({ albums }: Props) {
     setPhase('open')
   }, [phase, albums])
 
+  const activateAlbum = useCallback((idx: number) => {
+    const album = albums[idx]
+    if (!album) return
+
+    if (shouldDirectOpenAlbum()) {
+      router.push(album.href)
+      return
+    }
+
+    open(idx)
+  }, [albums, open, router, shouldDirectOpenAlbum])
+
   useLayoutEffect(() => {
     if (phase !== 'open') return
     previewRefs.current.forEach((el, k) => {
@@ -132,7 +151,7 @@ export default function Hero({ albums }: Props) {
             : `transform 0.38s cubic-bezier(0.55, 0, 0.7, 0.8) ${idx * 20}ms`
         }
 
-        const clickHandler = !isExpanded ? () => open(idx) : isAnchor ? close : undefined
+        const clickHandler = !isExpanded ? () => activateAlbum(idx) : isAnchor ? close : undefined
         const isInteractive = !isExpanded || isAnchor
 
         return (

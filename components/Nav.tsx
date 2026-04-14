@@ -33,6 +33,7 @@ function IgIcon() {
 
 export default function Nav() {
   const [active, setActive] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     const sections = document.querySelectorAll<HTMLElement>('section[id]')
@@ -42,6 +43,21 @@ export default function Nav() {
     )
     sections.forEach(s => observer.observe(s))
     return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    document.body.classList.toggle('mobile-menu-open', menuOpen)
+    return () => document.body.classList.remove('mobile-menu-open')
+  }, [menuOpen])
+
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth > 768) setMenuOpen(false)
+    }
+
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
   }, [])
 
   return (
@@ -59,10 +75,26 @@ export default function Nav() {
           @liminalfawn
         </a>
       </div>
-      <ul className="nav-links">
+      <button
+        type="button"
+        className={`nav-menu-btn${menuOpen ? ' is-open' : ''}`}
+        aria-expanded={menuOpen}
+        aria-controls="site-nav-links"
+        aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        onClick={() => setMenuOpen(open => !open)}
+      >
+        <span />
+        <span />
+        <span />
+      </button>
+      <ul id="site-nav-links" className={`nav-links${menuOpen ? ' is-open' : ''}`}>
         {links.map(({ label, href }) => (
           <li key={href}>
-            <a href={href} className={active === href.slice(1) ? 'active' : ''}>
+            <a
+              href={href}
+              className={active === href.slice(1) ? 'active' : ''}
+              onClick={() => setMenuOpen(false)}
+            >
               {label}
             </a>
           </li>
