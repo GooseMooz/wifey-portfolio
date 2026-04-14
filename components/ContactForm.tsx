@@ -32,7 +32,7 @@ export default function ContactForm() {
     const data = { name: fname, ...rest, submittedAt: new Date().toISOString() }
 
     try {
-      const res = await fetch('http://localhost:3011/submit', {
+      const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

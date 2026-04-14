@@ -1,41 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFile, writeFile, mkdir } from 'fs/promises'
-import path from 'path'
-
-const DATA_FILE = path.join(process.cwd(), 'data/submissions.json')
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
-    const { fname, email, type, message } = body
-    if (!fname || !email || !message) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-    }
-
-    await mkdir(path.dirname(DATA_FILE), { recursive: true })
-
-    let submissions: unknown[] = []
-    try {
-      const raw = await readFile(DATA_FILE, 'utf-8')
-      submissions = JSON.parse(raw)
-    } catch {
-      // file doesn't exist yet — start fresh
-    }
-
-    submissions.push({
-      name: fname,
-      email,
-      type: type || 'Not specified',
-      message,
-      submittedAt: new Date().toISOString(),
+    const res = await fetch('http://localhost:3011/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     })
 
-    await writeFile(DATA_FILE, JSON.stringify(submissions, null, 2), 'utf-8')
+    if (!res.ok) {
+      return NextResponse.json({ error: 'Backend error' }, { status: res.status })
+    }
 
     return NextResponse.json({ ok: true })
   } catch (err) {
-    console.error('[contact] Failed to save submission:', err)
+    console.error('[contact] proxy failed:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
