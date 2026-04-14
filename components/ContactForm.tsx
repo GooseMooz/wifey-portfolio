@@ -42,7 +42,7 @@ export default function ContactForm() {
       setTimeout(() => {
         setStatus('idle')
         form.reset()
-      }, 3700)
+      }, 4200)
     } catch (err) {
       console.error('[contact] fetch failed:', err)
       setStatus('error')
