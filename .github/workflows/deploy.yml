@@ -26,6 +26,7 @@ jobs:
             docker run -d \
               --name portfolio \
               --restart unless-stopped \
+              --network wifey-portfolio-net \
               -p 7070:3000 \
               -v ~/wifey-portfolio/data:/app/data \
               portfolio
