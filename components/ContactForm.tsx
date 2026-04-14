@@ -13,35 +13,49 @@ const shootTypes = [
 
 export default function ContactForm() {
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
+  const [typeError, setTypeError] = useState(false)
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (status === 'sending') return
-    setStatus('sending')
 
     const form = e.target as HTMLFormElement
-    const data = Object.fromEntries(new FormData(form))
+    const type = (form.elements.namedItem('type') as HTMLSelectElement).value
+    if (!type) {
+      setTypeError(true)
+      return
+    }
+    setTypeError(false)
+    setStatus('sending')
+
+    const { fname, ...rest } = Object.fromEntries(new FormData(form)) as Record<string, string>
+    const data = { name: fname, ...rest, submittedAt: new Date().toISOString() }
 
     try {
-      const res = await fetch('/api/contact', {
+      const res = await fetch('http://localhost:3011/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      if (!res.ok) throw new Error('Server error')
+      if (!res.ok) throw new Error(`Server returned ${res.status}`)
       setStatus('success')
       setTimeout(() => {
         setStatus('idle')
         form.reset()
-      }, 3000)
-    } catch {
+      }, 3700)
+    } catch (err) {
+      console.error('[contact] fetch failed:', err)
       setStatus('error')
       setTimeout(() => setStatus('idle'), 4000)
     }
   }
 
   return (
-    <form className="letter-wrap fade-in" onSubmit={handleSubmit} noValidate>
+    <form
+      className={`letter-wrap${status === 'success' ? ' letter-wrap--success' : ''}`}
+      onSubmit={handleSubmit}
+      noValidate
+    >
 
       {/* ── Airmail border strips ── */}
       <div className="letter-airmail letter-airmail-top" aria-hidden="true" />
@@ -93,10 +107,18 @@ export default function ContactForm() {
       {/* ── RE / Shoot type ── */}
       <div className="letter-re-row">
         <span className="letter-label">RE</span>
-        <select name="type" className="letter-select" defaultValue="">
-          <option value="" disabled>What is this about?</option>
-          {shootTypes.map(t => <option key={t}>{t}</option>)}
-        </select>
+        <div className="letter-re-field">
+          <select
+            name="type"
+            className={`letter-select${typeError ? ' letter-select--error' : ''}`}
+            defaultValue=""
+            onChange={() => setTypeError(false)}
+          >
+            <option value="" disabled>What is this about?</option>
+            {shootTypes.map(t => <option key={t}>{t}</option>)}
+          </select>
+          {typeError && <span className="letter-field-error">Please choose a type of inquiry.</span>}
+        </div>
       </div>
 
       <div className="letter-rule" />
@@ -123,18 +145,33 @@ export default function ContactForm() {
 
         <button
           type="submit"
-          className={`letter-send${status === 'success' ? ' sent' : ''}`}
+          className="letter-send"
           disabled={status === 'sending' || status === 'success'}
         >
-          {status === 'sending' ? 'Sending…'
-            : status === 'success' ? 'Sent ✓'
-            : status === 'error' ? 'Try again →'
-            : 'Send →'}
+          {status === 'sending' ? 'Sending…' : 'Send →'}
         </button>
       </div>
 
+      {/* ── Error notice ── */}
+      {status === 'error' && (
+        <div className="letter-notice letter-notice--error" role="alert">
+          Something went wrong — please try again or email directly.
+        </div>
+      )}
+
       {/* ── Airmail border strip (bottom) ── */}
       <div className="letter-airmail letter-airmail-btm" aria-hidden="true" />
+
+      {/* ── Success stamp overlay ── */}
+      {status === 'success' && (
+        <div className="letter-sent-overlay" aria-hidden="true">
+          <div className="letter-sent-stamp">
+            <span className="sent-stamp-top">MESSAGE</span>
+            <span className="sent-stamp-mid">SENT</span>
+            <span className="sent-stamp-btm">✦</span>
+          </div>
+        </div>
+      )}
 
     </form>
   )
