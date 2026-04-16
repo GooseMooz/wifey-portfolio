@@ -1,10 +1,8 @@
 import { readdir } from 'fs/promises'
 import path from 'path'
-import Image from 'next/image'
+import ProjectsClient from './ProjectsClient'
 
 const IMAGE_EXT = /\.(jpe?g|png|webp|avif)$/i
-
-const DESCRIPTIONS = ['Personal Shoot', 'Dope Bakehouse', 'IT Girls']
 
 async function getProjectPhotos(): Promise<string[]> {
   try {
@@ -27,24 +25,7 @@ export default async function Projects() {
       <div className="projects-header fade-in">
         <h2>My Favorites</h2>
       </div>
-
-      <div className="projects-grid">
-        {photos.map((src, i) => (
-          <a key={src} href="#" className="project-card fade-in">
-            <div className="project-card-img">
-              <Image
-                src={src}
-                alt={DESCRIPTIONS[i] ?? `Favorite photo ${i + 1}`}
-                fill
-                sizes="(max-width: 600px) 100vw, (max-width: 900px) 50vw, 33vw"
-              />
-              <div className="project-overlay">
-                <span className="project-overlay-name">{DESCRIPTIONS[i]}</span>
-              </div>
-            </div>
-          </a>
-        ))}
-      </div>
+      <ProjectsClient initialPhotos={photos} />
     </section>
   )
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { IBM_Plex_Mono, VT323 } from 'next/font/google'
 import ClientEffects from '@/components/ClientEffects'
+import { AdminProvider } from '@/contexts/AdminContext'
 import './globals.css'
 
 const ibmPlexMono = IBM_Plex_Mono({
@@ -27,7 +28,9 @@ export default function RootLayout({ children }: { readonly children: React.Reac
     <html lang="en">
       <body className={`${ibmPlexMono.variable} ${vt323.variable}`}>
         <ClientEffects />
-        {children}
+        <AdminProvider>
+          {children}
+        </AdminProvider>
       </body>
     </html>
   )

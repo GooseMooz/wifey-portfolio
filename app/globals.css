@@ -1296,6 +1296,280 @@ a, button, img, [role="button"] { cursor: none; }
 }
 .footer-handle:hover { opacity: 1; }
 
+/* ─── Admin Mode ─────────────────────────────────────────────────────── */
+.admin-toggle-btn {
+  font-family: var(--body);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.admin-toggle-btn:hover {
+  color: var(--terra);
+  border-color: var(--terra);
+}
+.admin-toggle-btn.active {
+  background: var(--terra);
+  border-color: var(--terra);
+  color: #fff;
+}
+
+.admin-mode-badge {
+  position: fixed;
+  top: 14px;
+  right: 80px;
+  z-index: 9999;
+  background: var(--terra);
+  color: #fff;
+  font-family: var(--body);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  padding: 3px 8px;
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+
+/* Editable element indicator in admin mode */
+.admin-editable {
+  cursor: pointer !important;
+  outline: 2px dashed var(--terra) !important;
+  outline-offset: 4px;
+  transition: outline-color 0.2s;
+}
+.admin-editable:hover {
+  outline-color: var(--terra-lt) !important;
+}
+
+/* Admin overlay / modal */
+.admin-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 8000;
+  background: rgba(40, 28, 34, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  backdrop-filter: blur(4px);
+}
+
+.admin-modal {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-width: 800px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-modal-single {
+  max-width: 480px;
+}
+
+.admin-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-lt);
+  flex-shrink: 0;
+}
+
+.admin-modal-title {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.admin-modal-close {
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+.admin-modal-close:hover {
+  color: var(--text);
+  border-color: var(--dim);
+}
+
+.admin-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  padding: 20px;
+}
+
+.admin-photo-item-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.admin-photo-label {
+  font-family: var(--body);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--terra);
+  text-align: center;
+}
+
+.admin-photo-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  border: none;
+  background: var(--surface);
+  padding: 0;
+  transition: transform 0.15s;
+}
+.admin-photo-item:hover {
+  transform: scale(1.03);
+}
+.admin-photo-item:hover .admin-photo-overlay,
+.admin-photo-item:disabled .admin-photo-overlay {
+  opacity: 1;
+}
+.admin-photo-item:disabled {
+  cursor: wait;
+}
+
+.admin-photo-preview {
+  aspect-ratio: 4 / 3;
+  display: block;
+  width: calc(100% - 40px);
+  margin: 20px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  border: none;
+  background: var(--surface);
+  padding: 0;
+}
+.admin-photo-preview:hover .admin-photo-overlay {
+  opacity: 1;
+}
+
+.admin-photo-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(176, 80, 96, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-family: var(--body);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 0.18s;
+}
+
+.admin-empty {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--muted);
+  font-family: var(--body);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+
+/* ─── Admin animations ───────────────────────────────────────────────── */
+
+/* Overlay backdrop fades in */
+@keyframes admin-overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.admin-overlay {
+  animation: admin-overlay-in 0.22s ease both;
+}
+
+/* Modal slides up from below with a slight scale */
+@keyframes admin-modal-in {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+.admin-modal {
+  animation: admin-modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Smooth image transition inside photo items */
+.admin-photo-item img,
+.admin-photo-preview img {
+  transition: opacity 0.3s ease, filter 0.3s ease;
+}
+
+/* While uploading: dim the image, keep overlay visible */
+.admin-photo-item.is-uploading img,
+.admin-photo-preview.is-uploading img {
+  opacity: 0.35;
+  filter: blur(3px);
+}
+.admin-photo-item.is-uploading .admin-photo-overlay,
+.admin-photo-preview.is-uploading .admin-photo-overlay {
+  opacity: 1;
+}
+
+/* Success flash: scale bounce + brightness pop */
+@keyframes admin-photo-success {
+  0%   { transform: scale(1);    filter: brightness(1);    }
+  30%  { transform: scale(1.05); filter: brightness(1.18); }
+  65%  { transform: scale(1.01); filter: brightness(1.05); }
+  100% { transform: scale(1);    filter: brightness(1);    }
+}
+.admin-photo-item.just-replaced,
+.admin-photo-preview.just-replaced {
+  animation: admin-photo-success 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.admin-photo-item.just-replaced .admin-photo-overlay,
+.admin-photo-preview.just-replaced .admin-photo-overlay {
+  opacity: 1;
+  background: rgba(80, 160, 120, 0.55); /* green tint for success */
+  font-size: 18px;
+}
+
+/* Spinner */
+@keyframes admin-spin {
+  to { transform: rotate(360deg); }
+}
+.admin-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: admin-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
 /* ─── Scroll fade-in ─────────────────────────────────────────────────── */
 .fade-in {
   opacity: 0;

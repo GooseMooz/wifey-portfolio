@@ -1,3 +1,7 @@
+'use client'
+
+import { useAdmin } from '@/contexts/AdminContext'
+
 function IgIcon() {
   return (
     <svg
@@ -19,6 +23,8 @@ function IgIcon() {
 }
 
 export default function Footer() {
+  const { isAdmin, toggle } = useAdmin()
+
   return (
     <footer className="footer">
       <span className="footer-name">Cathy Luo</span>
@@ -34,6 +40,13 @@ export default function Footer() {
       </a>
       <span className="footer-copy">made with love · {new Date().getFullYear()}</span>
       <span className="footer-copy">all rights reserved</span>
+      <button
+        className={`admin-toggle-btn${isAdmin ? ' active' : ''}`}
+        onClick={toggle}
+        aria-label={isAdmin ? 'Exit admin mode' : 'Enter admin mode'}
+      >
+        {isAdmin ? 'exit admin' : 'admin'}
+      </button>
     </footer>
   )
 }

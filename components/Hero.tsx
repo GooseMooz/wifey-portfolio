@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { CSSProperties } from 'react'
 import type { AlbumData } from '@/lib/albums'
+import { useAdmin } from '@/contexts/AdminContext'
+import AdminAlbumModal from './AdminAlbumModal'
 
 // Fixed grid placement for each of the 5 album slots.
 // Slot 0 = large left tile (col 1, rows 1–2), slots 1–4 fill the right 2×2 grid.
@@ -36,6 +38,7 @@ type Props = {
 
 export default function Hero({ albums }: Props) {
   const router = useRouter()
+  const { isAdmin } = useAdmin()
   const heroRef     = useRef<HTMLElement>(null)
   const albumRefs   = useRef<(HTMLDivElement | null)[]>([])
   const previewRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -43,10 +46,11 @@ export default function Hero({ albums }: Props) {
   const fromOffsets  = useRef<{ x: number; y: number }[]>([])
   const slideTransform = useRef<string>('translateX(120vw)')
 
-  const [phase,      setPhase]      = useState<Phase>('idle')
-  const [anchorIdx,  setAnchorIdx]  = useState<number | null>(null)
-  const [slotOrder,  setSlotOrder]  = useState<number[]>([])
-  const [pageLoaded, setPageLoaded] = useState(false)
+  const [phase,         setPhase]         = useState<Phase>('idle')
+  const [anchorIdx,     setAnchorIdx]     = useState<number | null>(null)
+  const [slotOrder,     setSlotOrder]     = useState<number[]>([])
+  const [pageLoaded,    setPageLoaded]    = useState(false)
+  const [adminEditIdx,  setAdminEditIdx]  = useState<number | null>(null)
 
   const shouldDirectOpenAlbum = useCallback(() => {
     if (typeof window === 'undefined') return false
@@ -151,14 +155,16 @@ export default function Hero({ albums }: Props) {
             : `transform 0.38s cubic-bezier(0.55, 0, 0.7, 0.8) ${idx * 20}ms`
         }
 
-        const clickHandler = !isExpanded ? () => activateAlbum(idx) : isAnchor ? close : undefined
-        const isInteractive = !isExpanded || isAnchor
+        const clickHandler = isAdmin
+          ? () => setAdminEditIdx(idx)
+          : (!isExpanded ? () => activateAlbum(idx) : isAnchor ? close : undefined)
+        const isInteractive = isAdmin || !isExpanded || isAnchor
 
         return (
           <div
             key={album.slug}
             ref={el => { albumRefs.current[idx] = el }}
-            className={`tile-stack${!pageLoaded ? ' is-entering' : ''}`}
+            className={`tile-stack${!pageLoaded ? ' is-entering' : ''}${isAdmin ? ' admin-editable' : ''}`}
             style={{
               '--r':      album.rotation,
               '--tape-r': album.tapeR,
@@ -195,8 +201,8 @@ export default function Hero({ albums }: Props) {
                   style={{ objectFit: 'cover', borderRadius: '2px' }}
                 />
                 <div className="tile-hover-label">
-                  <span className="tile-label-name">{album.label}</span>
-                  <span className="tile-label-sub">{album.sub}</span>
+                  <span className="tile-label-name">{isAdmin ? '✎ edit album' : album.label}</span>
+                  <span className="tile-label-sub">{isAdmin ? '' : album.sub}</span>
                 </div>
               </div>
             </div>
@@ -258,6 +264,45 @@ export default function Hero({ albums }: Props) {
           </div>
         </Link>
       )}
+
+      {/* ═══ Admin album editor modal ═══ */}
+      {isAdmin && adminEditIdx !== null && (
+        <AdminAlbumModal
+          album={albums[adminEditIdx]}
+          onClose={() => setAdminEditIdx(null)}
+        />
+      )}
+
+      {/* ═══ Off-screen preload: eagerly fetch all album preview images ═══
+           position:fixed + top:-120vh keeps them off-screen while the
+           realistic container dimensions let Next.js pick the right srcset size.
+           priority={true} injects <link rel="preload"> into <head> immediately. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          top: '-120vh',
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          overflow: 'hidden',
+          pointerEvents: 'none',
+          zIndex: -1,
+        }}
+      >
+        {albums.flatMap(a => a.previews).map(src => (
+          <div key={src} style={{ position: 'relative', width: '50%', height: '25%' }}>
+            <Image
+              src={src}
+              alt=""
+              fill
+              sizes="(max-width: 768px) 50vw, 32vw"
+              priority
+              style={{ objectFit: 'cover' }}
+            />
+          </div>
+        ))}
+      </div>
     </section>
   )
 }
