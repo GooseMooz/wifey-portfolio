@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useRef, useCallback, useLayoutEffect } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { CSSProperties } from 'react'
 import type { AlbumData } from '@/lib/albums'
 import { useAdmin } from '@/contexts/AdminContext'
 import AdminAlbumModal from './AdminAlbumModal'
+import LoadableImage from './LoadableImage'
 
 // Fixed grid placement for each of the 5 album slots.
 // Slot 0 = large left tile (col 1, rows 1–2), slots 1–4 fill the right 2×2 grid.
@@ -192,12 +192,12 @@ export default function Hero({ albums }: Props) {
             <div className="stack-back stack-back-1" />
             <div className="stack-front">
               <div className="tile-img-wrap">
-                <Image
-                  src={album.cover}
+                <LoadableImage
+                  src={album.coverPreview}
                   alt={album.label}
                   fill
                   sizes="(max-width: 768px) 50vw, 32vw"
-                  priority={idx === 0}
+                  priority
                   style={{ objectFit: 'cover', borderRadius: '2px' }}
                 />
                 <div className="tile-hover-label">
@@ -234,7 +234,7 @@ export default function Hero({ albums }: Props) {
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') close() }}
           >
             <div className="tile-img-wrap">
-              <Image
+              <LoadableImage
                 src={previewSrc}
                 alt={`${expanded.label} — photo ${k + 1}`}
                 fill
@@ -292,7 +292,7 @@ export default function Hero({ albums }: Props) {
       >
         {albums.flatMap(a => a.previews).map(src => (
           <div key={src} style={{ position: 'relative', width: '50%', height: '25%' }}>
-            <Image
+            <LoadableImage
               src={src}
               alt=""
               fill

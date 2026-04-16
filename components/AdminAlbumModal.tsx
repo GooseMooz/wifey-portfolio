@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import Image from 'next/image'
 import type { AlbumData } from '@/lib/albums'
+import LoadableImage from './LoadableImage'
 
 interface Props {
   album: AlbumData
@@ -105,7 +105,7 @@ export default function AdminAlbumModal({ album, onClose }: Props) {
           disabled={uploading !== null}
           aria-label={label ? `Replace ${label}` : 'Replace photo'}
         >
-          <Image
+          <LoadableImage
             src={src}
             alt={label ?? ''}
             fill

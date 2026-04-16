@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import Image from 'next/image'
 import type { PhotoInfo } from '@/lib/albums'
+import LoadableImage from './LoadableImage'
 
 type Props = {
   photos: PhotoInfo[]
@@ -38,7 +38,7 @@ export default function AlbumGrid({ photos, albumLabel }: Props) {
             onClick={() => setLightbox(src)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setLightbox(src) }}
           >
-            <Image
+            <LoadableImage
               src={src}
               alt={`${albumLabel} — photo ${i + 1}`}
               fill

@@ -26,11 +26,12 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Writable directory for contact-form submissions
-RUN mkdir -p data && chown nextjs:nodejs data
+# Writable directories for runtime data and uploaded photos
+RUN mkdir -p data/photos && chown -R nextjs:nodejs data
 
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV PHOTO_STORAGE_DIR="/app/data/photos"
 CMD ["node", "server.js"]

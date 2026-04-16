@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, unlink } from 'fs/promises'
 import path from 'path'
+import { NextRequest, NextResponse } from 'next/server'
+import { ensureImageVariant } from '@/lib/imageVariants'
+import { ensurePhotosDir, toMediaUrl } from '@/lib/photoStorage'
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,18 +16,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    let destDir: string
+    let relativeDir: string
     if (type === 'album' && slug) {
-      destDir = path.join(process.cwd(), 'public', 'photos', 'albums', slug)
+      relativeDir = path.posix.join('albums', slug)
     } else if (type === 'project') {
-      destDir = path.join(process.cwd(), 'public', 'photos', 'projects')
+      relativeDir = 'projects'
     } else if (type === 'hero') {
-      destDir = path.join(process.cwd(), 'public', 'photos', 'hero')
+      relativeDir = 'hero'
     } else {
       return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
     }
 
-    // Derive the new filename: keep the old base name, use new file's extension
+    const destDir = await ensurePhotosDir(relativeDir)
     const oldFilename = path.basename(oldPath.split('?')[0])
     const oldExt = path.extname(oldFilename)
     const baseName = path.basename(oldFilename, oldExt)
@@ -35,19 +37,24 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer()
     await writeFile(path.join(destDir, newFilename), Buffer.from(bytes))
 
-    // Remove the old file if the extension changed
     if (newFilename !== oldFilename) {
       try {
         await unlink(path.join(destDir, oldFilename))
-      } catch {
-        // ignore — old file may already be gone
-      }
+      } catch {}
     }
 
     const newSrcPath =
-      type === 'album'  ? `/photos/albums/${slug}/${newFilename}`  :
-      type === 'hero'   ? `/photos/hero/${newFilename}`            :
-                          `/photos/projects/${newFilename}`
+      type === 'album'  ? toMediaUrl(path.posix.join('albums', slug!, newFilename)) :
+      type === 'hero'   ? toMediaUrl(path.posix.join('hero', newFilename)) :
+                          toMediaUrl(path.posix.join('projects', newFilename))
+
+    if (type === 'album') {
+      await ensureImageVariant(newSrcPath, 'album-preview')
+    } else if (type === 'hero') {
+      await ensureImageVariant(newSrcPath, 'hero-cover')
+    } else if (type === 'project') {
+      await ensureImageVariant(newSrcPath, 'project-card')
+    }
 
     return NextResponse.json({ success: true, newPath: newSrcPath })
   } catch (err) {

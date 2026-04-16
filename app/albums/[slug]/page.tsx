@@ -1,12 +1,10 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { ALBUM_META, getAlbum } from '@/lib/albums'
+import { getAlbum } from '@/lib/albums'
 import AlbumGrid from '@/components/AlbumGrid'
 
-export function generateStaticParams() {
-  return ALBUM_META.map(a => ({ slug: a.slug }))
-}
+export const dynamic = 'force-dynamic'
 
 export async function generateMetadata(
   { params }: { params: Promise<{ slug: string }> }

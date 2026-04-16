@@ -1,6 +1,8 @@
 import { readdir } from 'fs/promises'
 import path from 'path'
 import sharp from 'sharp'
+import { ensureImageVariant } from './imageVariants'
+import { ensurePhotosDir, toMediaUrl } from './photoStorage'
 
 export type AlbumMeta = {
   slug: string
@@ -20,8 +22,9 @@ export type PhotoInfo = {
 
 export type AlbumData = AlbumMeta & {
   cover: string
-  previews: string[]    // first 4 src strings — used by hero expanded view
-  photos: PhotoInfo[]   // all photos with cell class — used by album page
+  coverPreview: string
+  previews: string[]
+  photos: PhotoInfo[]
 }
 
 const IMAGE_EXT = /\.(jpe?g|png|webp|avif)$/i
@@ -41,34 +44,34 @@ export function getAlbumMeta(slug: string): AlbumMeta | undefined {
 function cellClass(width: number, height: number): CellClass {
   if (!width || !height) return ''
   const ratio = width / height
-  if (ratio < 0.8)  return 'bento-portrait'   // clearly vertical  → 1 col × 2 rows
-  if (ratio > 1.25) return 'bento-landscape'  // clearly horizontal → 2 cols × 1 row
-  return ''                                    // square / near-square → 1×1
+  if (ratio < 0.8) return 'bento-portrait'
+  if (ratio > 1.25) return 'bento-landscape'
+  return ''
 }
 
 async function findCover(slug: string): Promise<string> {
   try {
-    const dir = path.join(process.cwd(), 'public/photos/hero')
+    const dir = await ensurePhotosDir('hero')
     const files = await readdir(dir)
     const match = files.find(f => f.toLowerCase().startsWith(slug + '.') && IMAGE_EXT.test(f))
-    if (match) return `/photos/hero/${match}`
+    if (match) return toMediaUrl(path.posix.join('hero', match))
   } catch {}
-  return `/photos/hero/${slug}.jpg`
+  return toMediaUrl(path.posix.join('hero', `${slug}.jpg`))
 }
 
 async function readAlbumPhotoInfos(slug: string): Promise<PhotoInfo[]> {
   try {
-    const dir = path.join(process.cwd(), `public/photos/albums/${slug}`)
+    const relativeDir = path.posix.join('albums', slug)
+    const dir = await ensurePhotosDir(relativeDir)
     const files = await readdir(dir)
     const sorted = files.filter(f => IMAGE_EXT.test(f)).sort()
 
-    return Promise.all(sorted.map(async (f) => {
-      const src = `/photos/albums/${slug}/${f}`
+    return Promise.all(sorted.map(async (fileName) => {
+      const src = toMediaUrl(path.posix.join(relativeDir, fileName))
       try {
-        const meta = await sharp(path.join(dir, f)).metadata()
-        let w = meta.width  ?? 0
+        const meta = await sharp(path.join(dir, fileName)).metadata()
+        let w = meta.width ?? 0
         let h = meta.height ?? 0
-        // EXIF orientations 5–8 are 90°/270° rotations — swap to get display dimensions
         if (meta.orientation && meta.orientation >= 5) [w, h] = [h, w]
         return { src, cellClass: cellClass(w, h) }
       } catch {
@@ -87,8 +90,11 @@ export async function getAlbums(): Promise<AlbumData[]> {
         findCover(meta.slug),
         readAlbumPhotoInfos(meta.slug),
       ])
-      const previews = photos.slice(0, 4).map(p => p.src)
-      return { ...meta, cover, previews, photos }
+      const [coverPreview, previews] = await Promise.all([
+        ensureImageVariant(cover, 'hero-cover'),
+        Promise.all(photos.slice(0, 4).map(photo => ensureImageVariant(photo.src, 'album-preview'))),
+      ])
+      return { ...meta, cover, coverPreview, previews, photos }
     })
   )
 }
@@ -96,10 +102,15 @@ export async function getAlbums(): Promise<AlbumData[]> {
 export async function getAlbum(slug: string): Promise<AlbumData | undefined> {
   const meta = getAlbumMeta(slug)
   if (!meta) return undefined
+
   const [cover, photos] = await Promise.all([
     findCover(slug),
     readAlbumPhotoInfos(slug),
   ])
-  const previews = photos.slice(0, 4).map(p => p.src)
-  return { ...meta, cover, previews, photos }
+  const [coverPreview, previews] = await Promise.all([
+    ensureImageVariant(cover, 'hero-cover'),
+    Promise.all(photos.slice(0, 4).map(photo => ensureImageVariant(photo.src, 'album-preview'))),
+  ])
+
+  return { ...meta, cover, coverPreview, previews, photos }
 }

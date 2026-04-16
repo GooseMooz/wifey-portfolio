@@ -18,6 +18,10 @@ jobs:
           script: |
             set -e
             cd ~/wifey-portfolio
+            mkdir -p ~/wifey-portfolio/data/photos
+            if [ -d ~/wifey-portfolio/public/photos ] && [ -z "$(find ~/wifey-portfolio/data/photos -mindepth 1 -print -quit)" ]; then
+              cp -a ~/wifey-portfolio/public/photos/. ~/wifey-portfolio/data/photos/
+            fi
             git pull origin main
             docker build -t portfolio .
             docker stop portfolio 2>/dev/null || true

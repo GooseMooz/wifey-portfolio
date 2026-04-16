@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import { useAdmin } from '@/contexts/AdminContext'
 import AdminProjectModal from './AdminProjectModal'
+import LoadableImage from './LoadableImage'
 
 const DESCRIPTIONS = ['Personal Shoot', 'Dope Bakehouse', 'IT Girls']
 
@@ -31,11 +31,12 @@ export default function ProjectsClient({ initialPhotos }: Props) {
             } : undefined}
           >
             <div className="project-card-img">
-              <Image
+              <LoadableImage
                 src={src}
                 alt={DESCRIPTIONS[i] ?? `Favorite photo ${i + 1}`}
                 fill
                 sizes="(max-width: 600px) 100vw, (max-width: 900px) 50vw, 33vw"
+                priority
               />
               <div className="project-overlay">
                 <span className="project-overlay-name">

@@ -1,21 +1,22 @@
 'use client'
 
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext } from 'react'
+import { usePathname } from 'next/navigation'
 
 interface AdminContextValue {
   isAdmin: boolean
-  toggle: () => void
 }
 
 const AdminContext = createContext<AdminContextValue>({
   isAdmin: false,
-  toggle: () => {},
 })
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
-  const [isAdmin, setIsAdmin] = useState(false)
+  const pathname = usePathname()
+  const isAdmin = pathname === '/admin'
+
   return (
-    <AdminContext.Provider value={{ isAdmin, toggle: () => setIsAdmin(v => !v) }}>
+    <AdminContext.Provider value={{ isAdmin }}>
       {isAdmin && (
         <div className="admin-mode-badge" aria-label="Admin mode active">ADMIN</div>
       )}

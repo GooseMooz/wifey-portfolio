@@ -7,6 +7,8 @@ import Contact from '@/components/Contact'
 import Footer from '@/components/Footer'
 import { getAlbums } from '@/lib/albums'
 
+export const dynamic = 'force-dynamic'
+
 export default async function Home() {
   const albums = await getAlbums()
 

@@ -1,15 +1,19 @@
-import Image from 'next/image'
+import { ensureImageVariant } from '@/lib/imageVariants'
+import LoadableImage from './LoadableImage'
 
-export default function About() {
+export default async function About() {
+  const aboutSrc = await ensureImageVariant('/media/about.jpg', 'about-main')
+
   return (
     <section id="about" className="about">
       <div className="about-img-wrap fade-in">
         <div className="about-img-inner">
-          <Image
-            src="/photos/about.jpg"
+          <LoadableImage
+            src={aboutSrc}
             alt="Cathy Luo"
             fill
             sizes="(max-width: 900px) 100vw, 50vw"
+            priority
             style={{ objectFit: 'cover' }}
           />
         </div>

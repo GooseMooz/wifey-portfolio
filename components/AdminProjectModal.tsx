@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import Image from 'next/image'
+import LoadableImage from './LoadableImage'
 
 interface Props {
   src: string
@@ -61,7 +61,7 @@ export default function AdminProjectModal({ src, description, onClose, onReplace
           disabled={uploading}
           aria-label="Replace photo"
         >
-          <Image
+          <LoadableImage
             src={src}
             alt=""
             fill
