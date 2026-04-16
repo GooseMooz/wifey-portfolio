@@ -2,6 +2,7 @@ import { readdir } from 'fs/promises'
 import path from 'path'
 import sharp from 'sharp'
 import { ensureImageVariant } from './imageVariants'
+import { cropToObjectPosition, getAlbumPhotoMeta, mediaKey, sortByDeclaredOrder } from './photoMeta'
 import { ensurePhotosDir, toMediaUrl } from './photoStorage'
 
 export type AlbumMeta = {
@@ -18,11 +19,13 @@ export type CellClass = '' | 'bento-portrait' | 'bento-landscape'
 export type PhotoInfo = {
   src: string
   cellClass: CellClass
+  objectPosition: string
 }
 
 export type AlbumData = AlbumMeta & {
   cover: string
   coverPreview: string
+  coverPosition: string
   previews: string[]
   photos: PhotoInfo[]
 }
@@ -63,19 +66,26 @@ async function readAlbumPhotoInfos(slug: string): Promise<PhotoInfo[]> {
   try {
     const relativeDir = path.posix.join('albums', slug)
     const dir = await ensurePhotosDir(relativeDir)
-    const files = await readdir(dir)
-    const sorted = files.filter(f => IMAGE_EXT.test(f)).sort()
+    const [files, meta] = await Promise.all([
+      readdir(dir),
+      getAlbumPhotoMeta(slug),
+    ])
+    const sorted = sortByDeclaredOrder(
+      files.filter(f => IMAGE_EXT.test(f)),
+      (meta.photoOrder ?? []).filter(entry => !entry.includes('/'))
+    )
 
     return Promise.all(sorted.map(async (fileName) => {
       const src = toMediaUrl(path.posix.join(relativeDir, fileName))
+      const crop = meta.photoCrops?.[mediaKey(src)]
       try {
         const meta = await sharp(path.join(dir, fileName)).metadata()
         let w = meta.width ?? 0
         let h = meta.height ?? 0
         if (meta.orientation && meta.orientation >= 5) [w, h] = [h, w]
-        return { src, cellClass: cellClass(w, h) }
+        return { src, cellClass: cellClass(w, h), objectPosition: cropToObjectPosition(crop) }
       } catch {
-        return { src, cellClass: '' as CellClass }
+        return { src, cellClass: '' as CellClass, objectPosition: cropToObjectPosition(crop) }
       }
     }))
   } catch {
@@ -86,15 +96,23 @@ async function readAlbumPhotoInfos(slug: string): Promise<PhotoInfo[]> {
 export async function getAlbums(): Promise<AlbumData[]> {
   return Promise.all(
     ALBUM_META.map(async (meta) => {
-      const [cover, photos] = await Promise.all([
+      const [cover, photos, albumPhotoMeta] = await Promise.all([
         findCover(meta.slug),
         readAlbumPhotoInfos(meta.slug),
+        getAlbumPhotoMeta(meta.slug),
       ])
       const [coverPreview, previews] = await Promise.all([
         ensureImageVariant(cover, 'hero-cover'),
         Promise.all(photos.slice(0, 4).map(photo => ensureImageVariant(photo.src, 'album-preview'))),
       ])
-      return { ...meta, cover, coverPreview, previews, photos }
+      return {
+        ...meta,
+        cover,
+        coverPreview,
+        coverPosition: cropToObjectPosition(albumPhotoMeta.coverCrop),
+        previews,
+        photos,
+      }
     })
   )
 }
@@ -103,14 +121,22 @@ export async function getAlbum(slug: string): Promise<AlbumData | undefined> {
   const meta = getAlbumMeta(slug)
   if (!meta) return undefined
 
-  const [cover, photos] = await Promise.all([
+  const [cover, photos, albumPhotoMeta] = await Promise.all([
     findCover(slug),
     readAlbumPhotoInfos(slug),
+    getAlbumPhotoMeta(slug),
   ])
   const [coverPreview, previews] = await Promise.all([
     ensureImageVariant(cover, 'hero-cover'),
     Promise.all(photos.slice(0, 4).map(photo => ensureImageVariant(photo.src, 'album-preview'))),
   ])
 
-  return { ...meta, cover, coverPreview, previews, photos }
+  return {
+    ...meta,
+    cover,
+    coverPreview,
+    coverPosition: cropToObjectPosition(albumPhotoMeta.coverCrop),
+    previews,
+    photos,
+  }
 }

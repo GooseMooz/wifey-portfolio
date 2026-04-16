@@ -22,6 +22,7 @@ jobs:
             if [ -d ~/wifey-portfolio/public/photos ] && [ -z "$(find ~/wifey-portfolio/data/photos -mindepth 1 -print -quit)" ]; then
               cp -a ~/wifey-portfolio/public/photos/. ~/wifey-portfolio/data/photos/
             fi
+            chmod -R a+rwX ~/wifey-portfolio/data
             git pull origin main
             docker build -t portfolio .
             docker stop portfolio 2>/dev/null || true

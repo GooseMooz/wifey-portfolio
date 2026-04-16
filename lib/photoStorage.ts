@@ -12,7 +12,7 @@ function stripQuery(src: string): string {
   return src.split('?')[0]
 }
 
-function relativeFromUrl(src: string): string {
+export function relativeFromUrl(src: string): string {
   const clean = stripQuery(src)
   if (clean.startsWith(MEDIA_PREFIX)) return clean.slice(MEDIA_PREFIX.length)
   if (clean.startsWith('/photos/')) return clean.slice('/photos/'.length)

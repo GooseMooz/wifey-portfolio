@@ -13,7 +13,7 @@ const AdminContext = createContext<AdminContextValue>({
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const isAdmin = pathname === '/admin'
+  const isAdmin = pathname === '/admin' || pathname.startsWith('/admin/')
 
   return (
     <AdminContext.Provider value={{ isAdmin }}>

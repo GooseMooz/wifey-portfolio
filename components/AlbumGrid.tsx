@@ -28,7 +28,7 @@ export default function AlbumGrid({ photos, albumLabel }: Props) {
   return (
     <>
       <div className="bento-grid">
-        {photos.map(({ src, cellClass }, i) => (
+        {photos.map(({ src, cellClass, objectPosition }, i) => (
           <div
             key={src}
             className={`bento-item${cellClass ? ` ${cellClass}` : ''}`}
@@ -43,7 +43,7 @@ export default function AlbumGrid({ photos, albumLabel }: Props) {
               alt={`${albumLabel} — photo ${i + 1}`}
               fill
               sizes="(max-width: 600px) 100vw, (max-width: 900px) 50vw, 33vw"
-              style={{ objectFit: 'cover' }}
+              style={{ objectFit: 'cover', objectPosition }}
             />
           </div>
         ))}

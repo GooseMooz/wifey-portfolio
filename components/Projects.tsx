@@ -1,20 +1,37 @@
 import { readdir } from 'fs/promises'
 import path from 'path'
 import { ensureImageVariant } from '@/lib/imageVariants'
+import { cropToObjectPosition, getSitePhotoMeta, mediaKey } from '@/lib/photoMeta'
 import { ensurePhotosDir, toMediaUrl } from '@/lib/photoStorage'
 import ProjectsClient from './ProjectsClient'
 
 const IMAGE_EXT = /\.(jpe?g|png|webp|avif)$/i
 
-async function getProjectPhotos(): Promise<string[]> {
+type ProjectPhoto = {
+  src: string
+  originalSrc: string
+  objectPosition: string
+}
+
+async function getProjectPhotos(): Promise<ProjectPhoto[]> {
   try {
     const dir = await ensurePhotosDir('projects')
-    const files = await readdir(dir)
+    const [files, siteMeta] = await Promise.all([
+      readdir(dir),
+      getSitePhotoMeta(),
+    ])
     return Promise.all(
       files
         .filter(f => IMAGE_EXT.test(f))
         .sort()
-        .map(f => ensureImageVariant(toMediaUrl(path.posix.join('projects', f)), 'project-card'))
+        .map(async (f) => {
+          const originalSrc = toMediaUrl(path.posix.join('projects', f))
+          return {
+            src: await ensureImageVariant(originalSrc, 'project-card'),
+            originalSrc,
+            objectPosition: cropToObjectPosition(siteMeta.projectCrops?.[mediaKey(originalSrc)]),
+          }
+        })
     )
   } catch {
     return []

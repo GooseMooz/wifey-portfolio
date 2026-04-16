@@ -2,6 +2,7 @@ import { writeFile, unlink } from 'fs/promises'
 import path from 'path'
 import { NextRequest, NextResponse } from 'next/server'
 import { ensureImageVariant } from '@/lib/imageVariants'
+import { mediaKey, updateAlbumPhotoMeta } from '@/lib/photoMeta'
 import { ensurePhotosDir, toMediaUrl } from '@/lib/photoStorage'
 
 export async function POST(req: NextRequest) {
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
     const slug = formData.get('slug') as string | null
     const oldPath = formData.get('oldPath') as string | null
 
-    if (!file || !type || !oldPath) {
+    if (!file || !type) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -28,16 +29,18 @@ export async function POST(req: NextRequest) {
     }
 
     const destDir = await ensurePhotosDir(relativeDir)
-    const oldFilename = path.basename(oldPath.split('?')[0])
+    const oldFilename = oldPath ? path.basename(oldPath.split('?')[0]) : ''
     const oldExt = path.extname(oldFilename)
-    const baseName = path.basename(oldFilename, oldExt)
+    const sourceBaseName = path.basename(file.name, path.extname(file.name)) || 'photo'
+    const safeBaseName = sourceBaseName.replace(/[^a-zA-Z0-9-_]+/g, '-').replace(/^-+|-+$/g, '') || 'photo'
+    const baseName = oldFilename ? path.basename(oldFilename, oldExt) : `${safeBaseName}-${Date.now()}`
     const newExt = path.extname(file.name) || oldExt
     const newFilename = `${baseName}${newExt}`
 
     const bytes = await file.arrayBuffer()
     await writeFile(path.join(destDir, newFilename), Buffer.from(bytes))
 
-    if (newFilename !== oldFilename) {
+    if (oldFilename && newFilename !== oldFilename) {
       try {
         await unlink(path.join(destDir, oldFilename))
       } catch {}
@@ -50,6 +53,12 @@ export async function POST(req: NextRequest) {
 
     if (type === 'album') {
       await ensureImageVariant(newSrcPath, 'album-preview')
+      if (!oldFilename && slug) {
+        await updateAlbumPhotoMeta(slug, current => ({
+          ...current,
+          photoOrder: [...(current.photoOrder ?? []), mediaKey(newSrcPath).split('/').pop()!],
+        }))
+      }
     } else if (type === 'hero') {
       await ensureImageVariant(newSrcPath, 'hero-cover')
     } else if (type === 'project') {

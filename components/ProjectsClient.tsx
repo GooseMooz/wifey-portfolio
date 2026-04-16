@@ -7,8 +7,14 @@ import LoadableImage from './LoadableImage'
 
 const DESCRIPTIONS = ['Personal Shoot', 'Dope Bakehouse', 'IT Girls']
 
+type ProjectPhoto = {
+  src: string
+  originalSrc: string
+  objectPosition: string
+}
+
 interface Props {
-  initialPhotos: string[]
+  initialPhotos: ProjectPhoto[]
 }
 
 export default function ProjectsClient({ initialPhotos }: Props) {
@@ -19,9 +25,9 @@ export default function ProjectsClient({ initialPhotos }: Props) {
   return (
     <>
       <div className="projects-grid">
-        {photos.map((src, i) => (
+        {photos.map((photo, i) => (
           <div
-            key={src}
+            key={photo.src}
             className={`project-card fade-in${isAdmin ? ' admin-editable' : ''}`}
             role={isAdmin ? 'button' : undefined}
             tabIndex={isAdmin ? 0 : undefined}
@@ -32,11 +38,12 @@ export default function ProjectsClient({ initialPhotos }: Props) {
           >
             <div className="project-card-img">
               <LoadableImage
-                src={src}
+                src={photo.src}
                 alt={DESCRIPTIONS[i] ?? `Favorite photo ${i + 1}`}
                 fill
                 sizes="(max-width: 600px) 100vw, (max-width: 900px) 50vw, 33vw"
                 priority
+                style={{ objectFit: 'cover', objectPosition: photo.objectPosition }}
               />
               <div className="project-overlay">
                 <span className="project-overlay-name">
@@ -50,12 +57,11 @@ export default function ProjectsClient({ initialPhotos }: Props) {
 
       {isAdmin && editingIdx !== null && (
         <AdminProjectModal
-          src={photos[editingIdx]}
+          photo={photos[editingIdx]}
           description={DESCRIPTIONS[editingIdx] ?? `Photo ${editingIdx + 1}`}
           onClose={() => setEditingIdx(null)}
-          onReplace={(newSrc) => {
-            setPhotos(prev => prev.map((p, j) => j === editingIdx ? newSrc : p))
-            setEditingIdx(null)
+          onReplace={(nextPhoto) => {
+            setPhotos(prev => prev.map((photo, j) => j === editingIdx ? nextPhoto : photo))
           }}
         />
       )}

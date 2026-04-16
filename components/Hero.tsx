@@ -198,7 +198,7 @@ export default function Hero({ albums }: Props) {
                   fill
                   sizes="(max-width: 768px) 50vw, 32vw"
                   priority
-                  style={{ objectFit: 'cover', borderRadius: '2px' }}
+                  style={{ objectFit: 'cover', objectPosition: album.coverPosition, borderRadius: '2px' }}
                 />
                 <div className="tile-hover-label">
                   <span className="tile-label-name">{isAdmin ? '✎ edit album' : album.label}</span>
@@ -215,6 +215,7 @@ export default function Hero({ albums }: Props) {
         if (k >= 4) return null
         const expanded = albums[anchorIdx]
         const previewSrc = expanded.previews[k]
+        const previewPhoto = expanded.photos[k]
         if (!previewSrc) return null
 
         return (
@@ -239,7 +240,7 @@ export default function Hero({ albums }: Props) {
                 alt={`${expanded.label} — photo ${k + 1}`}
                 fill
                 sizes="(max-width: 768px) 50vw, 32vw"
-                style={{ objectFit: 'cover' }}
+                style={{ objectFit: 'cover', objectPosition: previewPhoto?.objectPosition ?? '50% 50%' }}
               />
               <div className="tile-hover-label">
                 <span className="tile-label-name">{expanded.label}</span>
