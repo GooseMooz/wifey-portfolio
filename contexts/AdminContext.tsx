@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext } from 'react'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 interface AdminContextValue {
@@ -18,7 +19,12 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   return (
     <AdminContext.Provider value={{ isAdmin }}>
       {isAdmin && (
-        <div className="admin-mode-badge" aria-label="Admin mode active">ADMIN</div>
+        <div className="admin-mode-controls">
+          <div className="admin-mode-badge" aria-label="Admin mode active">ADMIN</div>
+          <Link href="/" className="admin-exit-btn">
+            Leave admin
+          </Link>
+        </div>
       )}
       {children}
     </AdminContext.Provider>

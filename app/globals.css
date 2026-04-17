@@ -1364,11 +1364,17 @@ a, button, img, [role="button"] { cursor: none; }
   color: #fff;
 }
 
-.admin-mode-badge {
+.admin-mode-controls {
   position: fixed;
   top: 14px;
-  right: 80px;
+  right: 20px;
   z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-mode-badge {
   background: var(--terra);
   color: #fff;
   font-family: var(--body);
@@ -1378,6 +1384,27 @@ a, button, img, [role="button"] { cursor: none; }
   padding: 3px 8px;
   border-radius: var(--radius);
   pointer-events: none;
+}
+
+.admin-exit-btn {
+  font-family: var(--body);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--terra);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(187, 147, 111, 0.35);
+  border-radius: var(--radius);
+  padding: 5px 10px;
+  text-decoration: none;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.admin-exit-btn:hover {
+  color: #fff;
+  background: var(--terra);
+  border-color: var(--terra);
 }
 
 /* Editable element indicator in admin mode */
