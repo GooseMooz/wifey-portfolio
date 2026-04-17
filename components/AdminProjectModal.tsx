@@ -1,12 +1,20 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { cropImageStyle } from '@/lib/cropStyle'
 import LoadableImage from './LoadableImage'
 
 type ProjectPhoto = {
   src: string
   originalSrc: string
   objectPosition: string
+  objectScale: number
+}
+
+type CropState = {
+  x: number
+  y: number
+  scale: number
 }
 
 interface Props {
@@ -16,19 +24,33 @@ interface Props {
   onReplace: (nextPhoto: ProjectPhoto) => void
 }
 
-function parseObjectPosition(value: string) {
-  const [x = '50%', y = '50%'] = value.split(' ')
+function parseCrop(photo: ProjectPhoto): CropState {
+  const [x = '50%', y = '50%'] = photo.objectPosition.split(' ')
   return {
     x: Number.parseFloat(x) || 50,
     y: Number.parseFloat(y) || 50,
+    scale: photo.objectScale || 1,
   }
 }
 
 export default function AdminProjectModal({ photo, description, onClose, onReplace }: Props) {
-  const [uploading,    setUploading]    = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [justReplaced, setJustReplaced] = useState(false)
-  const [crop, setCrop] = useState(() => parseObjectPosition(photo.objectPosition))
+  const [crop, setCrop] = useState<CropState>(() => parseCrop(photo))
+  const [isDraggingCrop, setIsDraggingCrop] = useState(false)
+  const cropDragRef = useRef<{
+    startX: number; startY: number
+    startCropX: number; startCropY: number
+    rectW: number; rectH: number
+  } | null>(null)
+  const cropFrameRef = useRef<HTMLDivElement>(null)
+  const [isDirty, setIsDirty] = useState(false)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setCrop(parseCrop(photo))
+  }, [photo])
 
   const saveCrop = async (nextCrop = crop, nextOriginalSrc = photo.originalSrc) => {
     await fetch('/api/admin/meta', {
@@ -40,6 +62,51 @@ export default function AdminProjectModal({ photo, description, onClose, onRepla
         crop: nextCrop,
       }),
     })
+  }
+
+  const handleSaveAll = async () => {
+    setSaveState('saving')
+    await saveCrop()
+    onReplace({
+      ...photo,
+      objectPosition: `${crop.x}% ${crop.y}%`,
+      objectScale: crop.scale,
+    })
+    setIsDirty(false)
+    setSaveState('saved')
+  }
+
+  // Delta-based crop drag — drag right moves image right (natural panning)
+  const handleCropPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const rect = cropFrameRef.current?.getBoundingClientRect() ?? e.currentTarget.getBoundingClientRect()
+    cropDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startCropX: crop.x,
+      startCropY: crop.y,
+      rectW: rect.width,
+      rectH: rect.height,
+    }
+    setIsDraggingCrop(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const handleCropPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingCrop || !cropDragRef.current) return
+    const { startX, startY, startCropX, startCropY, rectW, rectH } = cropDragRef.current
+    const dx = e.clientX - startX
+    const dy = e.clientY - startY
+    const newX = Math.max(0, Math.min(100, startCropX - (dx / rectW) * 100))
+    const newY = Math.max(0, Math.min(100, startCropY - (dy / rectH) * 100))
+    setCrop(prev => ({ ...prev, x: newX, y: newY }))
+    setIsDirty(true)
+    setSaveState('idle')
+  }
+
+  const handleCropPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    setIsDraggingCrop(false)
+    cropDragRef.current = null
+    e.currentTarget.releasePointerCapture(e.pointerId)
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,7 +121,7 @@ export default function AdminProjectModal({ photo, description, onClose, onRepla
 
     setUploading(true)
     try {
-      const res  = await fetch('/api/admin/upload', { method: 'POST', body: fd })
+      const res = await fetch('/api/admin/upload', { method: 'POST', body: fd })
       const data = await res.json()
       if (data.newPath) {
         const timestampedSrc = `${data.newPath}?v=${Date.now()}`
@@ -63,86 +130,100 @@ export default function AdminProjectModal({ photo, description, onClose, onRepla
           src: timestampedSrc,
           originalSrc: data.newPath,
           objectPosition: `${crop.x}% ${crop.y}%`,
+          objectScale: crop.scale,
         })
-        setUploading(false)
+        setIsDirty(false)
+        setSaveState('saved')
         setJustReplaced(true)
         setTimeout(() => setJustReplaced(false), 700)
       }
-    } catch {
+    } finally {
       setUploading(false)
     }
   }
+
+  const saveLabel = saveState === 'saving' ? 'saving…' : saveState === 'saved' && !isDirty ? 'saved ✓' : 'save changes'
 
   return (
     <div className="admin-overlay" onClick={onClose}>
       <div className="admin-modal admin-modal-single" onClick={e => e.stopPropagation()}>
         <div className="admin-modal-header">
           <span className="admin-modal-title">{description}</span>
-          <button className="admin-modal-close" onClick={onClose} aria-label="Close">✕</button>
+          <div className="admin-action-row">
+            <button
+              className={`admin-save-btn${isDirty ? ' is-dirty' : ''}`}
+              onClick={handleSaveAll}
+              disabled={uploading}
+              type="button"
+            >
+              {saveLabel}
+            </button>
+            <button className="admin-modal-close" onClick={onClose} aria-label="Close">✕</button>
+          </div>
         </div>
 
-        <button
-          className={[
-            'admin-photo-item',
-            'admin-photo-preview',
-            uploading    ? 'is-uploading'  : '',
-            justReplaced ? 'just-replaced' : '',
-          ].join(' ')}
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          aria-label="Replace photo"
+        {/* Crop stage with full-image background overlay */}
+        <div
+          className={`admin-crop-stage admin-crop-stage-single${isDraggingCrop ? ' is-dragging-crop' : ''}${uploading ? ' is-uploading-stage' : ''}${justReplaced ? ' just-replaced-stage' : ''}`}
+          style={{ margin: '20px' }}
+          onPointerDown={handleCropPointerDown}
+          onPointerMove={handleCropPointerMove}
+          onPointerUp={handleCropPointerUp}
+          onPointerCancel={() => { setIsDraggingCrop(false); cropDragRef.current = null }}
         >
           <LoadableImage
             src={photo.src}
             alt=""
             fill
             sizes="(max-width: 600px) 90vw, 480px"
-            style={{ objectFit: 'cover', objectPosition: `${crop.x}% ${crop.y}%` }}
+            wrapperClassName="admin-crop-bg-shell"
+            style={cropImageStyle(`${crop.x}% ${crop.y}%`, crop.scale)}
           />
-          <div className="admin-photo-overlay">
-            {uploading
-              ? <div className="admin-spinner" />
-              : justReplaced
-                ? '✓'
-                : 'click to replace'
-            }
+          <div className="admin-crop-stage-dim" />
+          <div ref={cropFrameRef} className="admin-crop-frame is-project">
+            <LoadableImage
+              src={photo.src}
+              alt=""
+              fill
+              sizes="(max-width: 600px) 90vw, 480px"
+              style={cropImageStyle(`${crop.x}% ${crop.y}%`, crop.scale)}
+            />
+            <div className="admin-crop-guides" />
+            <div className="admin-photo-overlay" style={{ opacity: uploading ? 1 : justReplaced ? 1 : 0, background: justReplaced ? 'rgba(80, 160, 120, 0.55)' : undefined }}>
+              {uploading ? <div className="admin-spinner" /> : justReplaced ? '✓' : 'drag to reposition'}
+            </div>
           </div>
-        </button>
+        </div>
 
         <div className="admin-crop-controls">
           <label className="admin-crop-field">
-            <span>horizontal crop</span>
+            <span>zoom</span>
             <input
               type="range"
-              min="0"
-              max="100"
-              value={crop.x}
-              onChange={e => setCrop(prev => ({ ...prev, x: Number(e.target.value) }))}
+              min="1"
+              max="2.5"
+              step="0.01"
+              value={crop.scale}
+              onChange={e => {
+                setCrop(prev => ({ ...prev, scale: Number(e.target.value) }))
+                setIsDirty(true)
+                setSaveState('idle')
+              }}
             />
           </label>
-          <label className="admin-crop-field">
-            <span>vertical crop</span>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={crop.y}
-              onChange={e => setCrop(prev => ({ ...prev, y: Number(e.target.value) }))}
-            />
-          </label>
-          <button
-            className="admin-save-btn"
-            onClick={async () => {
-              await saveCrop()
-              onReplace({
-                ...photo,
-                objectPosition: `${crop.x}% ${crop.y}%`,
-              })
-            }}
-            type="button"
-          >
-            save crop
-          </button>
+          <div className="admin-action-row">
+            <button
+              className={`admin-save-btn${isDirty ? ' is-dirty' : ''}`}
+              onClick={handleSaveAll}
+              type="button"
+            >
+              {saveLabel}
+            </button>
+            <button className="admin-save-btn" onClick={() => inputRef.current?.click()} disabled={uploading} type="button">
+              replace image
+            </button>
+          </div>
+          <p className="admin-help-text">Drag the preview to reposition. The bright frame shows the final crop. Use zoom to fit more or less.</p>
         </div>
 
         <input

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { cropImageStyle } from '@/lib/cropStyle'
 import { useAdmin } from '@/contexts/AdminContext'
 import AdminProjectModal from './AdminProjectModal'
 import LoadableImage from './LoadableImage'
@@ -11,6 +12,7 @@ type ProjectPhoto = {
   src: string
   originalSrc: string
   objectPosition: string
+  objectScale: number
 }
 
 interface Props {
@@ -43,7 +45,7 @@ export default function ProjectsClient({ initialPhotos }: Props) {
                 fill
                 sizes="(max-width: 600px) 100vw, (max-width: 900px) 50vw, 33vw"
                 priority
-                style={{ objectFit: 'cover', objectPosition: photo.objectPosition }}
+                style={cropImageStyle(photo.objectPosition, photo.objectScale)}
               />
               <div className="project-overlay">
                 <span className="project-overlay-name">

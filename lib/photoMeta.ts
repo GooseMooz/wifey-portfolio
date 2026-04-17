@@ -5,6 +5,7 @@ import { getPhotosRoot, relativeFromUrl } from './photoStorage'
 export type CropPosition = {
   x: number
   y: number
+  scale: number
 }
 
 type SitePhotoMeta = {
@@ -19,7 +20,7 @@ type AlbumPhotoMeta = {
 }
 
 function defaultCrop(): CropPosition {
-  return { x: 50, y: 50 }
+  return { x: 50, y: 50, scale: 1 }
 }
 
 async function metaDir(): Promise<string> {
@@ -81,11 +82,17 @@ export function cropToObjectPosition(crop?: CropPosition): string {
   return `${value.x}% ${value.y}%`
 }
 
+export function cropToScale(crop?: CropPosition): number {
+  return crop?.scale ?? 1
+}
+
 export function normalizeCrop(input?: Partial<CropPosition> | null): CropPosition {
   const clamp = (value: number | undefined) => Math.max(0, Math.min(100, Number.isFinite(value) ? value! : 50))
+  const clampScale = (value: number | undefined) => Math.max(1, Math.min(2.5, Number.isFinite(value) ? value! : 1))
   return {
     x: clamp(input?.x),
     y: clamp(input?.y),
+    scale: clampScale(input?.scale),
   }
 }
 

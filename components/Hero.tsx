@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useRef, useCallback, useLayoutEffect } from 'react'
+import { useState, useRef, useCallback, useLayoutEffect, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { CSSProperties } from 'react'
 import type { AlbumData } from '@/lib/albums'
+import { cropImageStyle } from '@/lib/cropStyle'
 import { useAdmin } from '@/contexts/AdminContext'
 import AdminAlbumModal from './AdminAlbumModal'
 import LoadableImage from './LoadableImage'
@@ -51,6 +52,11 @@ export default function Hero({ albums }: Props) {
   const [slotOrder,     setSlotOrder]     = useState<number[]>([])
   const [pageLoaded,    setPageLoaded]    = useState(false)
   const [adminEditIdx,  setAdminEditIdx]  = useState<number | null>(null)
+  const [albumsState,   setAlbumsState]   = useState(albums)
+
+  useEffect(() => {
+    setAlbumsState(albums)
+  }, [albums])
 
   const shouldDirectOpenAlbum = useCallback(() => {
     if (typeof window === 'undefined') return false
@@ -88,7 +94,7 @@ export default function Hero({ albums }: Props) {
     }
     slideTransform.current = DIRS[idx] ?? `translateX(${W + 120}px)`
 
-    const nonIdxs = albums.map((_, i) => i).filter(i => i !== idx)
+    const nonIdxs = albumsState.map((_, i) => i).filter(i => i !== idx)
 
     fromOffsets.current = nonIdxs.map(slotIdx => {
       const slot = rects[slotIdx]
@@ -100,10 +106,10 @@ export default function Hero({ albums }: Props) {
     setAnchorIdx(idx)
     setSlotOrder(nonIdxs)
     setPhase('open')
-  }, [phase, albums])
+  }, [phase, albumsState])
 
   const activateAlbum = useCallback((idx: number) => {
-    const album = albums[idx]
+    const album = albumsState[idx]
     if (!album) return
 
     if (shouldDirectOpenAlbum()) {
@@ -112,7 +118,7 @@ export default function Hero({ albums }: Props) {
     }
 
     open(idx)
-  }, [albums, open, router, shouldDirectOpenAlbum])
+  }, [albumsState, open, router, shouldDirectOpenAlbum])
 
   useLayoutEffect(() => {
     if (phase !== 'open') return
@@ -142,7 +148,7 @@ export default function Hero({ albums }: Props) {
     <section id="home" className="hero" ref={heroRef} aria-label="Portfolio categories">
 
       {/* ═══ Album tiles ═══ */}
-      {albums.map((album, idx) => {
+      {albumsState.map((album, idx) => {
         const isAnchor = idx === anchorIdx
         const isOther  = isExpanded && !isAnchor
 
@@ -198,7 +204,7 @@ export default function Hero({ albums }: Props) {
                   fill
                   sizes="(max-width: 768px) 50vw, 32vw"
                   priority
-                  style={{ objectFit: 'cover', objectPosition: album.coverPosition, borderRadius: '2px' }}
+                  style={{ ...cropImageStyle(album.coverPosition, album.coverScale), borderRadius: '2px' }}
                 />
                 <div className="tile-hover-label">
                   <span className="tile-label-name">{isAdmin ? '✎ edit album' : album.label}</span>
@@ -213,7 +219,7 @@ export default function Hero({ albums }: Props) {
       {/* ═══ Preview tiles — first 4 photos from the album folder ═══ */}
       {isExpanded && anchorIdx !== null && slotOrder.map((slotIdx, k) => {
         if (k >= 4) return null
-        const expanded = albums[anchorIdx]
+        const expanded = albumsState[anchorIdx]
         const previewSrc = expanded.previews[k]
         const previewPhoto = expanded.photos[k]
         if (!previewSrc) return null
@@ -240,7 +246,7 @@ export default function Hero({ albums }: Props) {
                 alt={`${expanded.label} — photo ${k + 1}`}
                 fill
                 sizes="(max-width: 768px) 50vw, 32vw"
-                style={{ objectFit: 'cover', objectPosition: previewPhoto?.objectPosition ?? '50% 50%' }}
+                style={cropImageStyle(previewPhoto?.objectPosition ?? '50% 50%', previewPhoto?.objectScale ?? 1)}
               />
               <div className="tile-hover-label">
                 <span className="tile-label-name">{expanded.label}</span>
@@ -257,7 +263,7 @@ export default function Hero({ albums }: Props) {
           href={albums[anchorIdx].href}
           className={`sticky-note ${isClosing ? 'sticky-collapsing' : 'sticky-entering'}`}
           style={{ animationDelay: isClosing ? '28ms' : '340ms' } as CSSProperties}
-          aria-label={`See full ${albums[anchorIdx].label} album`}
+          aria-label={`See full ${albumsState[anchorIdx].label} album`}
         >
           <div className="sticky-note-inner">
             <span className="sticky-note-text">see more<br />of that</span>
@@ -269,7 +275,11 @@ export default function Hero({ albums }: Props) {
       {/* ═══ Admin album editor modal ═══ */}
       {isAdmin && adminEditIdx !== null && (
         <AdminAlbumModal
-          album={albums[adminEditIdx]}
+          album={albumsState[adminEditIdx]}
+          previewMode="hero"
+          onAlbumChange={(nextAlbum) => {
+            setAlbumsState(current => current.map((album, idx) => idx === adminEditIdx ? nextAlbum : album))
+          }}
           onClose={() => setAdminEditIdx(null)}
         />
       )}
@@ -291,7 +301,7 @@ export default function Hero({ albums }: Props) {
           zIndex: -1,
         }}
       >
-        {albums.flatMap(a => a.previews).map(src => (
+        {albumsState.flatMap(a => a.previews).map(src => (
           <div key={src} style={{ position: 'relative', width: '50%', height: '25%' }}>
             <LoadableImage
               src={src}

@@ -1,12 +1,22 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
+import { useEffect, useRef, useState } from 'react'
 import type { AlbumData } from '@/lib/albums'
+import { cropImageStyle } from '@/lib/cropStyle'
 import LoadableImage from './LoadableImage'
 
 type EditablePhoto = {
   src: string
+  cellClass: '' | 'bento-portrait' | 'bento-landscape'
   objectPosition: string
+  objectScale: number
+}
+
+type CropState = {
+  x: number
+  y: number
+  scale: number
 }
 
 type SelectedTarget =
@@ -17,59 +27,115 @@ type SelectedTarget =
 interface Props {
   album: AlbumData
   onClose: () => void
+  previewMode?: 'album' | 'hero'
+  onAlbumChange?: (nextAlbum: AlbumData) => void
 }
 
-function parseObjectPosition(value: string) {
-  const [x = '50%', y = '50%'] = value.split(' ')
+function parseCrop(photo: { objectPosition: string, objectScale: number }): CropState {
+  const [x = '50%', y = '50%'] = photo.objectPosition.split(' ')
   return {
     x: Number.parseFloat(x) || 50,
     y: Number.parseFloat(y) || 50,
+    scale: photo.objectScale || 1,
   }
 }
 
-export default function AdminAlbumModal({ album, onClose }: Props) {
+function reorderPhotos(items: EditablePhoto[], fromSrc: string, toSrc: string) {
+  if (fromSrc === toSrc) return items
+  const next = [...items]
+  const fromIndex = next.findIndex(photo => photo.src === fromSrc)
+  const toIndex = next.findIndex(photo => photo.src === toSrc)
+  if (fromIndex === -1 || toIndex === -1) return items
+  const [moved] = next.splice(fromIndex, 1)
+  next.splice(toIndex, 0, moved)
+  return next
+}
+
+export default function AdminAlbumModal({ album, onClose, previewMode = 'album', onAlbumChange }: Props) {
   const [cover, setCover] = useState(album.cover)
-  const [coverPosition, setCoverPosition] = useState(() => parseObjectPosition(album.coverPosition))
+  const [coverCrop, setCoverCrop] = useState<CropState>(() => parseCrop({
+    objectPosition: album.coverPosition,
+    objectScale: album.coverScale,
+  }))
   const [photos, setPhotos] = useState<EditablePhoto[]>(() => album.photos.map(photo => ({
     src: photo.src,
+    cellClass: photo.cellClass,
     objectPosition: photo.objectPosition,
+    objectScale: photo.objectScale,
   })))
   const [selected, setSelected] = useState<SelectedTarget>({ kind: 'cover' })
+  const [crop, setCrop] = useState<CropState>(() => parseCrop({
+    objectPosition: album.coverPosition,
+    objectScale: album.coverScale,
+  }))
   const [uploading, setUploading] = useState<string | null>(null)
   const [justReplaced, setJustReplaced] = useState<string | null>(null)
+  // Drag-to-reorder state
   const [draggingSrc, setDraggingSrc] = useState<string | null>(null)
+  const [dragOverSrc, setDragOverSrc] = useState<string | null>(null)
+  // Crop drag state
+  const [isDraggingCrop, setIsDraggingCrop] = useState(false)
+  const cropDragRef = useRef<{
+    startX: number; startY: number
+    startCropX: number; startCropY: number
+    rectW: number; rectH: number
+  } | null>(null)
+  const cropFrameRef = useRef<HTMLDivElement>(null)
 
+  const [isDirty, setIsDirty] = useState(false)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const inputRef = useRef<HTMLInputElement>(null)
   const pending = useRef<SelectedTarget | null>(null)
+  const coverRef = useRef(cover)
+  const coverCropRef = useRef(coverCrop)
+  const photosRef = useRef(photos)
+
+  useEffect(() => {
+    coverRef.current = cover
+  }, [cover])
+
+  useEffect(() => {
+    coverCropRef.current = coverCrop
+  }, [coverCrop])
+
+  useEffect(() => {
+    photosRef.current = photos
+  }, [photos])
 
   const selectedPhoto = selected.kind === 'photo'
     ? photos.find(photo => photo.src === selected.src) ?? null
     : null
 
-  const selectedCrop = useMemo(() => {
-    if (selected.kind === 'cover') return coverPosition
-    if (selected.kind === 'photo' && selectedPhoto) return parseObjectPosition(selectedPhoto.objectPosition)
-    return { x: 50, y: 50 }
-  }, [coverPosition, selected, selectedPhoto])
-
-  const [crop, setCrop] = useState(selectedCrop)
-
-  const syncCropFromSelection = (target: SelectedTarget) => {
-    if (target.kind === 'cover') {
-      setCrop(coverPosition)
+  useEffect(() => {
+    if (selected.kind === 'cover') {
+      setCrop(coverCrop)
       return
     }
-    if (target.kind === 'photo') {
-      const photo = photos.find(item => item.src === target.src)
-      setCrop(parseObjectPosition(photo?.objectPosition ?? '50% 50%'))
+    if (selected.kind === 'photo' && selectedPhoto) {
+      setCrop(parseCrop(selectedPhoto))
       return
     }
-    setCrop({ x: 50, y: 50 })
-  }
+    setCrop({ x: 50, y: 50, scale: 1 })
+  }, [selected, selectedPhoto, coverCrop])
 
   const selectTarget = (target: SelectedTarget) => {
     setSelected(target)
-    syncCropFromSelection(target)
+  }
+
+  const emitAlbumChange = (
+    nextCover = coverRef.current,
+    nextCoverCrop = coverCropRef.current,
+    nextPhotos = photosRef.current
+  ) => {
+    onAlbumChange?.({
+      ...album,
+      cover: nextCover,
+      coverPreview: nextCover,
+      coverPosition: `${nextCoverCrop.x}% ${nextCoverCrop.y}%`,
+      coverScale: nextCoverCrop.scale,
+      previews: nextPhotos.slice(0, 4).map(photo => photo.src),
+      photos: nextPhotos,
+    })
   }
 
   const saveCrop = async () => {
@@ -86,19 +152,19 @@ export default function AdminAlbumModal({ album, onClose }: Props) {
     })
 
     if (selected.kind === 'cover') {
-      setCoverPosition(crop)
+      setCoverCrop(crop)
+      coverCropRef.current = crop
     } else {
-      setPhotos(current => current.map(photo =>
+      const nextPhotos = photosRef.current.map(photo =>
         photo.src === selected.src
-          ? { ...photo, objectPosition: `${crop.x}% ${crop.y}%` }
+          ? { ...photo, objectPosition: `${crop.x}% ${crop.y}%`, objectScale: crop.scale }
           : photo
-      ))
+      )
+      setPhotos(nextPhotos)
+      photosRef.current = nextPhotos
     }
-  }
 
-  const triggerUpload = (target: SelectedTarget) => {
-    pending.current = target
-    inputRef.current?.click()
+    setIsDirty(false)
   }
 
   const saveOrder = async (nextPhotos: EditablePhoto[]) => {
@@ -111,6 +177,96 @@ export default function AdminAlbumModal({ album, onClose }: Props) {
         orderedSrcs: nextPhotos.map(photo => photo.src),
       }),
     })
+    setIsDirty(false)
+  }
+
+  const handleSaveAll = async () => {
+    setSaveState('saving')
+    await saveCrop()
+    await saveOrder(photosRef.current)
+    emitAlbumChange()
+    setSaveState('saved')
+  }
+
+  // ── Crop drag handlers (delta-based, correct pan direction) ─────────────
+  const handleCropPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (selected.kind === 'new-photo') return
+    const rect = cropFrameRef.current?.getBoundingClientRect() ?? e.currentTarget.getBoundingClientRect()
+    cropDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startCropX: crop.x,
+      startCropY: crop.y,
+      rectW: rect.width,
+      rectH: rect.height,
+    }
+    setIsDraggingCrop(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const handleCropPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingCrop || !cropDragRef.current) return
+    const { startX, startY, startCropX, startCropY, rectW, rectH } = cropDragRef.current
+    const dx = e.clientX - startX
+    const dy = e.clientY - startY
+    const newX = Math.max(0, Math.min(100, startCropX - (dx / rectW) * 100))
+    const newY = Math.max(0, Math.min(100, startCropY - (dy / rectH) * 100))
+    setCrop(prev => ({ ...prev, x: newX, y: newY }))
+    setIsDirty(true)
+    setSaveState('idle')
+  }
+
+  const handleCropPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    setIsDraggingCrop(false)
+    cropDragRef.current = null
+    e.currentTarget.releasePointerCapture(e.pointerId)
+  }
+
+  // ── Thumb drag-to-reorder (pointer events, floating ghost) ─────────────
+  const startThumbDrag = (
+    photo: EditablePhoto,
+    startX: number,
+    startY: number,
+    _pointerOffsetX: number,
+    _pointerOffsetY: number
+  ) => {
+    const src = photo.src
+    setDraggingSrc(src)
+
+    const handleMove = (e: PointerEvent) => {
+      const els = document.elementsFromPoint(e.clientX, e.clientY)
+      const thumbEl = els.find(el =>
+        (el as HTMLElement).dataset?.dragSrc &&
+        (el as HTMLElement).dataset?.dragSrc !== src
+      ) as HTMLElement | undefined
+      const overSrc = thumbEl?.dataset?.dragSrc
+
+      if (overSrc) {
+        setDragOverSrc(overSrc)
+        setPhotos(prev => {
+          const next = reorderPhotos(prev, src, overSrc)
+          photosRef.current = next
+          return next
+        })
+        setIsDirty(true)
+        setSaveState('idle')
+      }
+    }
+
+    const handleUp = () => {
+      setDraggingSrc(null)
+      setDragOverSrc(null)
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', handleUp)
+    }
+
+    window.addEventListener('pointermove', handleMove)
+    window.addEventListener('pointerup', handleUp)
+  }
+
+  const triggerUpload = (target: SelectedTarget) => {
+    pending.current = target
+    inputRef.current?.click()
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -152,30 +308,45 @@ export default function AdminAlbumModal({ album, onClose }: Props) {
           body: JSON.stringify({ kind: 'hero-crop', slug: album.slug, crop }),
         })
         setCover(timestampedSrc)
+        coverRef.current = timestampedSrc
+        setCoverCrop(crop)
+        coverCropRef.current = crop
         setJustReplaced('cover')
+        setIsDirty(false)
+        emitAlbumChange(timestampedSrc, crop, photosRef.current)
       } else if (target.kind === 'photo') {
         await fetch('/api/admin/meta', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ kind: 'album-photo-crop', slug: album.slug, src: data.newPath, crop }),
         })
-        setPhotos(current => current.map(photo =>
+        const nextPhotos = photosRef.current.map(photo =>
           photo.src === target.src
-            ? { src: timestampedSrc, objectPosition: `${crop.x}% ${crop.y}%` }
+            ? { ...photo, src: timestampedSrc, objectPosition: `${crop.x}% ${crop.y}%`, objectScale: crop.scale }
             : photo
-        ))
+        )
+        setPhotos(nextPhotos)
+        photosRef.current = nextPhotos
         setSelected({ kind: 'photo', src: timestampedSrc })
         setJustReplaced(timestampedSrc)
+        setIsDirty(false)
+        emitAlbumChange(coverRef.current, coverCropRef.current, nextPhotos)
       } else {
         await fetch('/api/admin/meta', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ kind: 'album-photo-crop', slug: album.slug, src: data.newPath, crop }),
         })
-        const nextPhotos = [...photos, { src: timestampedSrc, objectPosition: `${crop.x}% ${crop.y}%` }]
+        const nextPhotos: EditablePhoto[] = [
+          ...photosRef.current,
+          { src: timestampedSrc, cellClass: '', objectPosition: `${crop.x}% ${crop.y}%`, objectScale: crop.scale },
+        ]
         setPhotos(nextPhotos)
+        photosRef.current = nextPhotos
         setSelected({ kind: 'photo', src: timestampedSrc })
         setJustReplaced(timestampedSrc)
+        setIsDirty(true)
+        emitAlbumChange(coverRef.current, coverCropRef.current, nextPhotos)
       }
 
       setTimeout(() => setJustReplaced(null), 700)
@@ -185,18 +356,6 @@ export default function AdminAlbumModal({ album, onClose }: Props) {
     }
   }
 
-  const movePhoto = async (fromSrc: string, toSrc: string) => {
-    if (fromSrc === toSrc) return
-    const nextPhotos = [...photos]
-    const fromIndex = nextPhotos.findIndex(photo => photo.src === fromSrc)
-    const toIndex = nextPhotos.findIndex(photo => photo.src === toSrc)
-    if (fromIndex === -1 || toIndex === -1) return
-    const [moved] = nextPhotos.splice(fromIndex, 1)
-    nextPhotos.splice(toIndex, 0, moved)
-    setPhotos(nextPhotos)
-    await saveOrder(nextPhotos)
-  }
-
   const renderThumb = (photo: EditablePhoto, label?: string) => {
     const key = label === 'cover' ? 'cover' : photo.src
     const isUploading = uploading === key
@@ -204,20 +363,38 @@ export default function AdminAlbumModal({ album, onClose }: Props) {
     const isSelected = selected.kind === 'cover'
       ? label === 'cover'
       : selected.kind === 'photo' && selected.src === photo.src
+    const isDragging = draggingSrc === photo.src
+    const isDropTarget = dragOverSrc === photo.src && draggingSrc !== photo.src
 
     return (
       <div
         key={key}
-        className={`admin-photo-item-wrap${isSelected ? ' is-selected' : ''}`}
-        draggable={!label}
-        onDragStart={!label ? () => setDraggingSrc(photo.src) : undefined}
-        onDragOver={!label ? (e => e.preventDefault()) : undefined}
-        onDrop={!label ? async (e) => {
-          e.preventDefault()
-          if (draggingSrc) await movePhoto(draggingSrc, photo.src)
-          setDraggingSrc(null)
+        data-drag-src={!label ? photo.src : undefined}
+        className={`admin-photo-item-wrap${isSelected ? ' is-selected' : ''}${isDragging ? ' is-dragging' : ''}${isDropTarget ? ' is-drop-target' : ''}`}
+        onPointerDown={!label ? (e) => {
+          // Only left-button pointer starts drag
+          if (e.button !== 0) return
+          const startX = e.clientX
+          const startY = e.clientY
+          const rect = e.currentTarget.getBoundingClientRect()
+          const pointerOffsetX = startX - rect.left
+          const pointerOffsetY = startY - rect.top
+
+          // Wait for meaningful movement before activating drag
+          const onMoveCheck = (me: PointerEvent) => {
+            if (Math.hypot(me.clientX - startX, me.clientY - startY) > 6) {
+              window.removeEventListener('pointermove', onMoveCheck)
+              window.removeEventListener('pointerup', onUpCancel)
+              startThumbDrag(photo, startX, startY, pointerOffsetX, pointerOffsetY)
+            }
+          }
+          const onUpCancel = () => {
+            window.removeEventListener('pointermove', onMoveCheck)
+            window.removeEventListener('pointerup', onUpCancel)
+          }
+          window.addEventListener('pointermove', onMoveCheck)
+          window.addEventListener('pointerup', onUpCancel)
         } : undefined}
-        onDragEnd={!label ? () => setDraggingSrc(null) : undefined}
       >
         <button
           className={[
@@ -235,7 +412,7 @@ export default function AdminAlbumModal({ album, onClose }: Props) {
             alt={label ?? ''}
             fill
             sizes="(max-width: 600px) 45vw, 200px"
-            style={{ objectFit: 'cover', objectPosition: photo.objectPosition }}
+            style={cropImageStyle(photo.objectPosition, photo.objectScale)}
           />
           <div className="admin-photo-overlay">
             {isUploading ? <div className="admin-spinner" /> : label ? 'edit cover' : 'edit photo'}
@@ -246,17 +423,55 @@ export default function AdminAlbumModal({ album, onClose }: Props) {
     )
   }
 
+  const selectedPhotoIndex = selected.kind === 'photo'
+    ? photos.findIndex(photo => photo.src === selected.src)
+    : -1
+
+  const previewAspectClass = selected.kind === 'cover'
+    ? previewMode === 'hero'
+      ? 'is-hero-cover'
+      : 'is-cover'
+    : selected.kind === 'photo' && selectedPhoto
+      ? previewMode === 'hero' && selectedPhotoIndex >= 0 && selectedPhotoIndex < 4
+        ? 'is-square'
+        : selectedPhoto.cellClass === 'bento-portrait'
+          ? 'is-portrait'
+          : selectedPhoto.cellClass === 'bento-landscape'
+            ? 'is-landscape'
+            : 'is-square'
+      : 'is-square'
+
+  const imageSrc = selected.kind === 'cover'
+    ? cover
+    : selected.kind === 'photo' && selectedPhoto
+      ? selectedPhoto.src
+      : null
+
+  const saveLabel = saveState === 'saving' ? 'saving…' : saveState === 'saved' && !isDirty ? 'saved ✓' : 'save changes'
+
   return (
     <div className="admin-overlay" onClick={onClose}>
       <div className="admin-modal admin-album-modal" onClick={e => e.stopPropagation()}>
         <div className="admin-modal-header">
           <span className="admin-modal-title">{album.label} — {album.sub}</span>
-          <button className="admin-modal-close" onClick={onClose} aria-label="Close">✕</button>
+          <div className="admin-action-row">
+            {selected.kind !== 'new-photo' && (
+              <button
+                className={`admin-save-btn${isDirty ? ' is-dirty' : ''}`}
+                onClick={handleSaveAll}
+                type="button"
+              >
+                {saveLabel}
+              </button>
+            )}
+            <Link className="admin-save-btn" href={`/admin/albums/${album.slug}`}>open album admin</Link>
+            <button className="admin-modal-close" onClick={onClose} aria-label="Close">✕</button>
+          </div>
         </div>
 
         <div className="admin-album-layout">
           <div className="admin-photo-grid">
-            {renderThumb({ src: cover, objectPosition: `${coverPosition.x}% ${coverPosition.y}%` }, 'cover')}
+            {renderThumb({ src: cover, cellClass: '', objectPosition: `${coverCrop.x}% ${coverCrop.y}%`, objectScale: coverCrop.scale }, 'cover')}
             {photos.map(photo => renderThumb(photo))}
 
             <div className="admin-photo-item-wrap">
@@ -271,25 +486,37 @@ export default function AdminAlbumModal({ album, onClose }: Props) {
           </div>
 
           <div className="admin-editor-panel">
-            <div className="admin-editor-preview">
-              {selected.kind === 'cover' && (
+            {/* Crop stage with full-image overlay */}
+            <div
+              className={`admin-crop-stage${isDraggingCrop ? ' is-dragging-crop' : ''}`}
+              onPointerDown={handleCropPointerDown}
+              onPointerMove={handleCropPointerMove}
+              onPointerUp={handleCropPointerUp}
+              onPointerCancel={() => { setIsDraggingCrop(false); cropDragRef.current = null }}
+            >
+              {imageSrc && (
                 <LoadableImage
-                  src={cover}
+                  src={imageSrc}
                   alt=""
                   fill
-                  sizes="(max-width: 900px) 90vw, 440px"
-                  style={{ objectFit: 'cover', objectPosition: `${crop.x}% ${crop.y}%` }}
+                  sizes="50vw"
+                  wrapperClassName="admin-crop-bg-shell"
+                  style={cropImageStyle(`${crop.x}% ${crop.y}%`, crop.scale)}
                 />
               )}
-              {selected.kind === 'photo' && selectedPhoto && (
-                <LoadableImage
-                  src={selectedPhoto.src}
-                  alt=""
-                  fill
-                  sizes="(max-width: 900px) 90vw, 440px"
-                  style={{ objectFit: 'cover', objectPosition: `${crop.x}% ${crop.y}%` }}
-                />
-              )}
+              <div className="admin-crop-stage-dim" />
+              <div ref={cropFrameRef} className={`admin-crop-frame ${previewAspectClass}`}>
+                {imageSrc && (
+                  <LoadableImage
+                    src={imageSrc}
+                    alt=""
+                    fill
+                    sizes="(max-width: 900px) 70vw, 380px"
+                    style={cropImageStyle(`${crop.x}% ${crop.y}%`, crop.scale)}
+                  />
+                )}
+                <div className="admin-crop-guides" />
+              </div>
               {selected.kind === 'new-photo' && (
                 <div className="admin-new-photo-placeholder">new album photo</div>
               )}
@@ -297,30 +524,31 @@ export default function AdminAlbumModal({ album, onClose }: Props) {
 
             <div className="admin-crop-controls">
               <label className="admin-crop-field">
-                <span>horizontal crop</span>
+                <span>zoom</span>
                 <input
                   type="range"
-                  min="0"
-                  max="100"
-                  value={crop.x}
-                  onChange={e => setCrop(prev => ({ ...prev, x: Number(e.target.value) }))}
-                />
-              </label>
-              <label className="admin-crop-field">
-                <span>vertical crop</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={crop.y}
-                  onChange={e => setCrop(prev => ({ ...prev, y: Number(e.target.value) }))}
+                  min="1"
+                  max="2.5"
+                  step="0.01"
+                  value={crop.scale}
+                  onChange={e => {
+                    setCrop(prev => ({ ...prev, scale: Number(e.target.value) }))
+                    setIsDirty(true)
+                    setSaveState('idle')
+                  }}
                 />
               </label>
 
               <div className="admin-action-row">
                 {selected.kind !== 'new-photo' && (
                   <>
-                    <button className="admin-save-btn" onClick={saveCrop} type="button">save crop</button>
+                    <button
+                      className={`admin-save-btn${isDirty ? ' is-dirty' : ''}`}
+                      onClick={handleSaveAll}
+                      type="button"
+                    >
+                      {saveLabel}
+                    </button>
                     <button className="admin-save-btn" onClick={() => triggerUpload(selected)} type="button">replace image</button>
                   </>
                 )}
@@ -328,7 +556,7 @@ export default function AdminAlbumModal({ album, onClose }: Props) {
                   <button className="admin-save-btn" onClick={() => triggerUpload(selected)} type="button">upload new photo</button>
                 )}
               </div>
-              <p className="admin-help-text">Drag the album thumbnails to reorder them.</p>
+              <p className="admin-help-text">Drag the preview to reposition. The bright frame is the final crop. Drag thumbnails to reorder.</p>
             </div>
           </div>
         </div>

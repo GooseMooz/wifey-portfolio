@@ -257,6 +257,8 @@ a, button, img, [role="button"] { cursor: none; }
   opacity: 0;
   transition: opacity 0.35s ease;
   z-index: 1;
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 .image-shell.is-loaded .image-shell-img {
@@ -1500,7 +1502,7 @@ a, button, img, [role="button"] { cursor: none; }
   border: none;
   background: var(--surface);
   padding: 0;
-  transition: transform 0.15s;
+  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.24s ease, opacity 0.2s ease;
 }
 .admin-photo-item:hover {
   transform: scale(1.03);
@@ -1527,8 +1529,21 @@ a, button, img, [role="button"] { cursor: none; }
   color: var(--terra);
 }
 
+.admin-photo-item-wrap.is-dragging {
+  opacity: 0.45;
+}
+
+.admin-photo-item-wrap.is-dragging .admin-photo-item {
+  transform: scale(0.94) rotate(-2deg);
+}
+
+.admin-photo-item-wrap.is-drop-target .admin-photo-item {
+  transform: translateY(-6px) scale(1.04);
+  box-shadow: 0 10px 24px rgba(40, 28, 34, 0.16);
+}
+
 .admin-photo-preview {
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 4 / 5;
   display: block;
   width: calc(100% - 40px);
   margin: 20px;
@@ -1569,11 +1584,45 @@ a, button, img, [role="button"] { cursor: none; }
 .admin-editor-preview {
   position: relative;
   width: 100%;
-  aspect-ratio: 4 / 5;
   overflow: hidden;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: rgba(255, 248, 250, 0.82);
+}
+
+.admin-editor-preview.is-cover {
+  aspect-ratio: 3 / 4;
+}
+
+.admin-editor-preview.is-square {
+  aspect-ratio: 1;
+}
+
+.admin-editor-preview.is-portrait {
+  aspect-ratio: 1 / 2;
+}
+
+.admin-editor-preview.is-landscape {
+  aspect-ratio: 2 / 1;
+}
+
+.admin-crop-surface {
+  cursor: grab;
+  touch-action: none;
+}
+
+.admin-crop-surface::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(255,255,255,0.55);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.admin-crop-surface.is-dragging-crop {
+  cursor: grabbing;
 }
 
 .admin-new-photo-placeholder {
@@ -1630,6 +1679,22 @@ a, button, img, [role="button"] { cursor: none; }
   text-transform: uppercase;
   border-radius: 999px;
   padding: 10px 16px;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.admin-save-btn.is-dirty {
+  background: var(--terra);
+  border-color: var(--terra);
+  color: #fff;
+}
+
+.admin-save-btn.is-dirty:hover {
+  background: var(--terra-lt);
+  border-color: var(--terra-lt);
 }
 
 .admin-help-text {
@@ -1719,6 +1784,90 @@ a, button, img, [role="button"] { cursor: none; }
   border-radius: 50%;
   animation: admin-spin 0.7s linear infinite;
   flex-shrink: 0;
+}
+
+/* ─── Admin crop stage (editor with overlay) ─────────────────────────── */
+.admin-crop-stage {
+  position: relative;
+  padding: 28px;
+  background: rgba(18, 8, 12, 0.92);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+}
+
+.admin-crop-stage.is-dragging-crop { cursor: grabbing; }
+
+/* Background bleed shell — fills entire stage */
+.admin-crop-bg-shell {
+  position: absolute !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.admin-crop-bg-shell .image-shell-img {
+  filter: blur(8px) saturate(0.4);
+  opacity: 0.35 !important;
+  transform-origin: center;
+}
+
+.admin-crop-stage-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 4, 7, 0.55);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* The actual crop frame — shows exact final result */
+.admin-crop-frame {
+  position: relative;
+  overflow: hidden;
+  z-index: 2;
+  width: 100%;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.45),
+    0 0 0 2px rgba(0, 0, 0, 0.4),
+    0 6px 28px rgba(0, 0, 0, 0.5);
+}
+
+.admin-crop-frame.is-cover     { aspect-ratio: 3 / 4; }
+.admin-crop-frame.is-hero-cover { aspect-ratio: 2 / 3; }
+.admin-crop-frame.is-square    { aspect-ratio: 1; }
+.admin-crop-frame.is-portrait  { aspect-ratio: 1 / 2; }
+.admin-crop-frame.is-landscape { aspect-ratio: 2 / 1; }
+.admin-crop-frame.is-project   { aspect-ratio: 4 / 5; }
+
+/* Single-photo crop stage (project modal) */
+.admin-crop-stage-single {
+  border-radius: var(--radius);
+}
+
+/* Rule-of-thirds guides */
+.admin-crop-guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background:
+    linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px) 0 33.33% / 100% 33.34%,
+    linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px) 33.33% 0 / 33.34% 100%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* "New photo" placeholder inside stage */
+.admin-crop-stage .admin-new-photo-placeholder {
+  position: relative;
+  z-index: 2;
 }
 
 /* ─── Scroll fade-in ─────────────────────────────────────────────────── */

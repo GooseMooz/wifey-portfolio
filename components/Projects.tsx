@@ -11,6 +11,7 @@ type ProjectPhoto = {
   src: string
   originalSrc: string
   objectPosition: string
+  objectScale: number
 }
 
 async function getProjectPhotos(): Promise<ProjectPhoto[]> {
@@ -30,6 +31,7 @@ async function getProjectPhotos(): Promise<ProjectPhoto[]> {
             src: await ensureImageVariant(originalSrc, 'project-card'),
             originalSrc,
             objectPosition: cropToObjectPosition(siteMeta.projectCrops?.[mediaKey(originalSrc)]),
+            objectScale: siteMeta.projectCrops?.[mediaKey(originalSrc)]?.scale ?? 1,
           }
         })
     )

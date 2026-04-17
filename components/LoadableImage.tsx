@@ -16,10 +16,14 @@ export default function LoadableImage({
   const [loaded, setLoaded] = useState(false)
 
   return (
-    <div className={`image-shell${loaded ? ' is-loaded' : ''}${wrapperClassName ? ` ${wrapperClassName}` : ''}`}>
+    <div
+      className={`image-shell${loaded ? ' is-loaded' : ''}${wrapperClassName ? ` ${wrapperClassName}` : ''}`}
+      onDragStart={(e) => e.preventDefault()}
+    >
       <div className="image-shell-placeholder" aria-hidden="true" />
       <Image
         {...props}
+        draggable={false}
         className={`image-shell-img${className ? ` ${className}` : ''}`}
         onLoad={(event) => {
           setLoaded(true)

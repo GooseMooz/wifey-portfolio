@@ -2,7 +2,7 @@ import { readdir } from 'fs/promises'
 import path from 'path'
 import sharp from 'sharp'
 import { ensureImageVariant } from './imageVariants'
-import { cropToObjectPosition, getAlbumPhotoMeta, mediaKey, sortByDeclaredOrder } from './photoMeta'
+import { cropToObjectPosition, cropToScale, getAlbumPhotoMeta, mediaKey, sortByDeclaredOrder } from './photoMeta'
 import { ensurePhotosDir, toMediaUrl } from './photoStorage'
 
 export type AlbumMeta = {
@@ -20,12 +20,14 @@ export type PhotoInfo = {
   src: string
   cellClass: CellClass
   objectPosition: string
+  objectScale: number
 }
 
 export type AlbumData = AlbumMeta & {
   cover: string
   coverPreview: string
   coverPosition: string
+  coverScale: number
   previews: string[]
   photos: PhotoInfo[]
 }
@@ -83,9 +85,9 @@ async function readAlbumPhotoInfos(slug: string): Promise<PhotoInfo[]> {
         let w = meta.width ?? 0
         let h = meta.height ?? 0
         if (meta.orientation && meta.orientation >= 5) [w, h] = [h, w]
-        return { src, cellClass: cellClass(w, h), objectPosition: cropToObjectPosition(crop) }
+        return { src, cellClass: cellClass(w, h), objectPosition: cropToObjectPosition(crop), objectScale: cropToScale(crop) }
       } catch {
-        return { src, cellClass: '' as CellClass, objectPosition: cropToObjectPosition(crop) }
+        return { src, cellClass: '' as CellClass, objectPosition: cropToObjectPosition(crop), objectScale: cropToScale(crop) }
       }
     }))
   } catch {
@@ -110,6 +112,7 @@ export async function getAlbums(): Promise<AlbumData[]> {
         cover,
         coverPreview,
         coverPosition: cropToObjectPosition(albumPhotoMeta.coverCrop),
+        coverScale: cropToScale(albumPhotoMeta.coverCrop),
         previews,
         photos,
       }
@@ -136,6 +139,7 @@ export async function getAlbum(slug: string): Promise<AlbumData | undefined> {
     cover,
     coverPreview,
     coverPosition: cropToObjectPosition(albumPhotoMeta.coverCrop),
+    coverScale: cropToScale(albumPhotoMeta.coverCrop),
     previews,
     photos,
   }
