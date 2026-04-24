@@ -1457,13 +1457,60 @@ a, button, img, [role="button"] { cursor: none; }
   flex-shrink: 0;
 }
 
-.admin-modal-title {
+.admin-label-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-label-input,
+.admin-sub-input {
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  outline: none;
   font-family: var(--display);
-  font-size: 13px;
-  font-weight: 400;
+  color: var(--text);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text);
+  padding: 2px 0;
+  width: 100%;
+  transition: border-color 0.18s;
+}
+.admin-label-input:hover,
+.admin-sub-input:hover,
+.admin-label-input:focus,
+.admin-sub-input:focus {
+  border-bottom-color: var(--border);
+}
+
+.admin-label-input {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.admin-sub-input {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.admin-delete-btn {
+  border-color: #e5b4b4;
+  color: #c0392b;
+}
+.admin-delete-btn:hover {
+  background: #fdf2f2;
+}
+.admin-delete-btn.is-dirty {
+  background: #c0392b;
+  border-color: #c0392b;
+  color: #fff;
+}
+.admin-delete-btn.is-dirty:hover {
+  background: #a93226;
+  border-color: #a93226;
 }
 
 .admin-modal-close {

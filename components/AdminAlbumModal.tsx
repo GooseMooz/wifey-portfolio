@@ -8,6 +8,7 @@ import LoadableImage from './LoadableImage'
 
 type EditablePhoto = {
   src: string
+  previewSrc: string
   cellClass: '' | 'bento-portrait' | 'bento-landscape'
   objectPosition: string
   objectScale: number
@@ -53,16 +54,20 @@ function reorderPhotos(items: EditablePhoto[], fromSrc: string, toSrc: string) {
 
 export default function AdminAlbumModal({ album, onClose, previewMode = 'album', onAlbumChange }: Props) {
   const [cover, setCover] = useState(album.cover)
+  const [coverPreview, setCoverPreview] = useState(album.coverPreview)
   const [coverCrop, setCoverCrop] = useState<CropState>(() => parseCrop({
     objectPosition: album.coverPosition,
     objectScale: album.coverScale,
   }))
   const [photos, setPhotos] = useState<EditablePhoto[]>(() => album.photos.map(photo => ({
     src: photo.src,
+    previewSrc: photo.previewSrc,
     cellClass: photo.cellClass,
     objectPosition: photo.objectPosition,
     objectScale: photo.objectScale,
   })))
+  const [label, setLabel] = useState(album.label)
+  const [sub, setSub] = useState(album.sub)
   const [selected, setSelected] = useState<SelectedTarget>({ kind: 'cover' })
   const [crop, setCrop] = useState<CropState>(() => parseCrop({
     objectPosition: album.coverPosition,
@@ -70,6 +75,8 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
   }))
   const [uploading, setUploading] = useState<string | null>(null)
   const [justReplaced, setJustReplaced] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   // Drag-to-reorder state
   const [draggingSrc, setDraggingSrc] = useState<string | null>(null)
   const [dragOverSrc, setDragOverSrc] = useState<string | null>(null)
@@ -87,20 +94,18 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
   const inputRef = useRef<HTMLInputElement>(null)
   const pending = useRef<SelectedTarget | null>(null)
   const coverRef = useRef(cover)
+  const coverPreviewRef = useRef(coverPreview)
   const coverCropRef = useRef(coverCrop)
   const photosRef = useRef(photos)
+  const labelRef = useRef(label)
+  const subRef = useRef(sub)
 
-  useEffect(() => {
-    coverRef.current = cover
-  }, [cover])
-
-  useEffect(() => {
-    coverCropRef.current = coverCrop
-  }, [coverCrop])
-
-  useEffect(() => {
-    photosRef.current = photos
-  }, [photos])
+  useEffect(() => { coverRef.current = cover }, [cover])
+  useEffect(() => { coverPreviewRef.current = coverPreview }, [coverPreview])
+  useEffect(() => { coverCropRef.current = coverCrop }, [coverCrop])
+  useEffect(() => { photosRef.current = photos }, [photos])
+  useEffect(() => { labelRef.current = label }, [label])
+  useEffect(() => { subRef.current = sub }, [sub])
 
   const selectedPhoto = selected.kind === 'photo'
     ? photos.find(photo => photo.src === selected.src) ?? null
@@ -118,22 +123,32 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
     setCrop({ x: 50, y: 50, scale: 1 })
   }, [selected, selectedPhoto, coverCrop])
 
+  // Reset confirm-delete state when selection changes
+  useEffect(() => {
+    setConfirmDelete(false)
+  }, [selected])
+
   const selectTarget = (target: SelectedTarget) => {
     setSelected(target)
   }
 
   const emitAlbumChange = (
     nextCover = coverRef.current,
+    nextCoverPreview = coverPreviewRef.current,
     nextCoverCrop = coverCropRef.current,
-    nextPhotos = photosRef.current
+    nextPhotos = photosRef.current,
+    nextLabel = labelRef.current,
+    nextSub = subRef.current,
   ) => {
     onAlbumChange?.({
       ...album,
+      label: nextLabel,
+      sub: nextSub,
       cover: nextCover,
-      coverPreview: nextCover,
+      coverPreview: nextCoverPreview,
       coverPosition: `${nextCoverCrop.x}% ${nextCoverCrop.y}%`,
       coverScale: nextCoverCrop.scale,
-      previews: nextPhotos.slice(0, 4).map(photo => photo.src),
+      previews: nextPhotos.slice(0, 4).map(photo => photo.previewSrc),
       photos: nextPhotos,
     })
   }
@@ -163,8 +178,6 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
       setPhotos(nextPhotos)
       photosRef.current = nextPhotos
     }
-
-    setIsDirty(false)
   }
 
   const saveOrder = async (nextPhotos: EditablePhoto[]) => {
@@ -177,15 +190,42 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
         orderedSrcs: nextPhotos.map(photo => photo.src),
       }),
     })
-    setIsDirty(false)
+  }
+
+  const saveLabelMeta = async () => {
+    await fetch('/api/admin/meta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'album-label', slug: album.slug, label: labelRef.current, sub: subRef.current }),
+    })
   }
 
   const handleSaveAll = async () => {
     setSaveState('saving')
-    await saveCrop()
-    await saveOrder(photosRef.current)
+    await Promise.all([saveCrop(), saveOrder(photosRef.current), saveLabelMeta()])
     emitAlbumChange()
+    setIsDirty(false)
     setSaveState('saved')
+  }
+
+  const handleDeletePhoto = async () => {
+    if (selected.kind !== 'photo') return
+    setDeleting(true)
+    try {
+      await fetch('/api/admin/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'album-photo', slug: album.slug, src: selected.src }),
+      })
+      const nextPhotos = photosRef.current.filter(p => p.src !== selected.src)
+      setPhotos(nextPhotos)
+      photosRef.current = nextPhotos
+      setSelected({ kind: 'cover' })
+      setConfirmDelete(false)
+      emitAlbumChange(coverRef.current, coverPreviewRef.current, coverCropRef.current, nextPhotos)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   // ── Crop drag handlers (delta-based, correct pan direction) ─────────────
@@ -309,11 +349,13 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
         })
         setCover(timestampedSrc)
         coverRef.current = timestampedSrc
+        setCoverPreview(timestampedSrc)
+        coverPreviewRef.current = timestampedSrc
         setCoverCrop(crop)
         coverCropRef.current = crop
         setJustReplaced('cover')
         setIsDirty(false)
-        emitAlbumChange(timestampedSrc, crop, photosRef.current)
+        emitAlbumChange(timestampedSrc, timestampedSrc, crop, photosRef.current)
       } else if (target.kind === 'photo') {
         await fetch('/api/admin/meta', {
           method: 'POST',
@@ -322,7 +364,7 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
         })
         const nextPhotos = photosRef.current.map(photo =>
           photo.src === target.src
-            ? { ...photo, src: timestampedSrc, objectPosition: `${crop.x}% ${crop.y}%`, objectScale: crop.scale }
+            ? { ...photo, src: timestampedSrc, previewSrc: timestampedSrc, objectPosition: `${crop.x}% ${crop.y}%`, objectScale: crop.scale }
             : photo
         )
         setPhotos(nextPhotos)
@@ -330,7 +372,7 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
         setSelected({ kind: 'photo', src: timestampedSrc })
         setJustReplaced(timestampedSrc)
         setIsDirty(false)
-        emitAlbumChange(coverRef.current, coverCropRef.current, nextPhotos)
+        emitAlbumChange(coverRef.current, coverPreviewRef.current, coverCropRef.current, nextPhotos)
       } else {
         await fetch('/api/admin/meta', {
           method: 'POST',
@@ -339,14 +381,14 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
         })
         const nextPhotos: EditablePhoto[] = [
           ...photosRef.current,
-          { src: timestampedSrc, cellClass: '', objectPosition: `${crop.x}% ${crop.y}%`, objectScale: crop.scale },
+          { src: timestampedSrc, previewSrc: timestampedSrc, cellClass: '', objectPosition: `${crop.x}% ${crop.y}%`, objectScale: crop.scale },
         ]
         setPhotos(nextPhotos)
         photosRef.current = nextPhotos
         setSelected({ kind: 'photo', src: timestampedSrc })
         setJustReplaced(timestampedSrc)
         setIsDirty(true)
-        emitAlbumChange(coverRef.current, coverCropRef.current, nextPhotos)
+        emitAlbumChange(coverRef.current, coverPreviewRef.current, coverCropRef.current, nextPhotos)
       }
 
       setTimeout(() => setJustReplaced(null), 700)
@@ -372,7 +414,6 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
         data-drag-src={!label ? photo.src : undefined}
         className={`admin-photo-item-wrap${isSelected ? ' is-selected' : ''}${isDragging ? ' is-dragging' : ''}${isDropTarget ? ' is-drop-target' : ''}`}
         onPointerDown={!label ? (e) => {
-          // Only left-button pointer starts drag
           if (e.button !== 0) return
           const startX = e.clientX
           const startY = e.clientY
@@ -380,7 +421,6 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
           const pointerOffsetX = startX - rect.left
           const pointerOffsetY = startY - rect.top
 
-          // Wait for meaningful movement before activating drag
           const onMoveCheck = (me: PointerEvent) => {
             if (Math.hypot(me.clientX - startX, me.clientY - startY) > 6) {
               window.removeEventListener('pointermove', onMoveCheck)
@@ -408,7 +448,7 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
           type="button"
         >
           <LoadableImage
-            src={photo.src}
+            src={photo.previewSrc}
             alt={label ?? ''}
             fill
             sizes="(max-width: 600px) 45vw, 200px"
@@ -442,9 +482,9 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
       : 'is-square'
 
   const imageSrc = selected.kind === 'cover'
-    ? cover
+    ? coverPreview
     : selected.kind === 'photo' && selectedPhoto
-      ? selectedPhoto.src
+      ? selectedPhoto.previewSrc
       : null
 
   const saveLabel = saveState === 'saving' ? 'saving…' : saveState === 'saved' && !isDirty ? 'saved ✓' : 'save changes'
@@ -453,7 +493,22 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
     <div className="admin-overlay" onClick={onClose}>
       <div className="admin-modal admin-album-modal" onClick={e => e.stopPropagation()}>
         <div className="admin-modal-header">
-          <span className="admin-modal-title">{album.label} — {album.sub}</span>
+          <div className="admin-label-edit">
+            <input
+              className="admin-label-input"
+              value={label}
+              onChange={e => { setLabel(e.target.value); setIsDirty(true); setSaveState('idle') }}
+              placeholder="Album name"
+              aria-label="Album name"
+            />
+            <input
+              className="admin-sub-input"
+              value={sub}
+              onChange={e => { setSub(e.target.value); setIsDirty(true); setSaveState('idle') }}
+              placeholder="Subtitle"
+              aria-label="Album subtitle"
+            />
+          </div>
           <div className="admin-action-row">
             {selected.kind !== 'new-photo' && (
               <button
@@ -471,7 +526,7 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
 
         <div className="admin-album-layout">
           <div className="admin-photo-grid">
-            {renderThumb({ src: cover, cellClass: '', objectPosition: `${coverCrop.x}% ${coverCrop.y}%`, objectScale: coverCrop.scale }, 'cover')}
+            {renderThumb({ src: cover, previewSrc: coverPreview, cellClass: '', objectPosition: `${coverCrop.x}% ${coverCrop.y}%`, objectScale: coverCrop.scale }, 'cover')}
             {photos.map(photo => renderThumb(photo))}
 
             <div className="admin-photo-item-wrap">
@@ -550,6 +605,34 @@ export default function AdminAlbumModal({ album, onClose, previewMode = 'album',
                       {saveLabel}
                     </button>
                     <button className="admin-save-btn" onClick={() => triggerUpload(selected)} type="button">replace image</button>
+                    {selected.kind === 'photo' && !confirmDelete && (
+                      <button
+                        className="admin-save-btn admin-delete-btn"
+                        onClick={() => setConfirmDelete(true)}
+                        type="button"
+                      >
+                        delete photo
+                      </button>
+                    )}
+                    {selected.kind === 'photo' && confirmDelete && (
+                      <>
+                        <button
+                          className="admin-save-btn admin-delete-btn is-dirty"
+                          onClick={handleDeletePhoto}
+                          disabled={deleting}
+                          type="button"
+                        >
+                          {deleting ? 'deleting…' : 'confirm delete'}
+                        </button>
+                        <button
+                          className="admin-save-btn"
+                          onClick={() => setConfirmDelete(false)}
+                          type="button"
+                        >
+                          cancel
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
                 {selected.kind === 'new-photo' && (

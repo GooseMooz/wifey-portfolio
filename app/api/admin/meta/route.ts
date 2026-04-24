@@ -5,6 +5,7 @@ type Body =
   | { kind: 'album-cover-crop'; slug: string; crop: { x: number; y: number } }
   | { kind: 'album-photo-crop'; slug: string; src: string; crop: { x: number; y: number } }
   | { kind: 'album-order'; slug: string; orderedSrcs: string[] }
+  | { kind: 'album-label'; slug: string; label: string; sub: string }
   | { kind: 'hero-crop'; slug: string; crop: { x: number; y: number } }
   | { kind: 'project-crop'; src: string; crop: { x: number; y: number } }
 
@@ -29,6 +30,12 @@ export async function POST(req: NextRequest) {
       await updateAlbumPhotoMeta(body.slug, current => ({
         ...current,
         photoOrder: body.orderedSrcs.map(src => mediaKey(src).split('/').pop()!).filter(Boolean),
+      }))
+    } else if (body.kind === 'album-label') {
+      await updateAlbumPhotoMeta(body.slug, current => ({
+        ...current,
+        label: body.label,
+        sub: body.sub,
       }))
     } else if (body.kind === 'hero-crop') {
       await updateAlbumPhotoMeta(body.slug, current => ({

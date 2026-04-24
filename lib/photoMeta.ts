@@ -17,6 +17,8 @@ type AlbumPhotoMeta = {
   coverCrop?: CropPosition
   photoCrops?: Record<string, CropPosition>
   photoOrder?: string[]
+  label?: string
+  sub?: string
 }
 
 function defaultCrop(): CropPosition {

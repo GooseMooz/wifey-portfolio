@@ -18,6 +18,7 @@ export type CellClass = '' | 'bento-portrait' | 'bento-landscape'
 
 export type PhotoInfo = {
   src: string
+  previewSrc: string
   cellClass: CellClass
   objectPosition: string
   objectScale: number
@@ -81,13 +82,16 @@ async function readAlbumPhotoInfos(slug: string): Promise<PhotoInfo[]> {
       const src = toMediaUrl(path.posix.join(relativeDir, fileName))
       const crop = meta.photoCrops?.[mediaKey(src)]
       try {
-        const meta = await sharp(path.join(dir, fileName)).metadata()
-        let w = meta.width ?? 0
-        let h = meta.height ?? 0
-        if (meta.orientation && meta.orientation >= 5) [w, h] = [h, w]
-        return { src, cellClass: cellClass(w, h), objectPosition: cropToObjectPosition(crop), objectScale: cropToScale(crop) }
+        const [imgMeta, previewSrc] = await Promise.all([
+          sharp(path.join(dir, fileName)).metadata(),
+          ensureImageVariant(src, 'album-preview'),
+        ])
+        let w = imgMeta.width ?? 0
+        let h = imgMeta.height ?? 0
+        if (imgMeta.orientation && imgMeta.orientation >= 5) [w, h] = [h, w]
+        return { src, previewSrc, cellClass: cellClass(w, h), objectPosition: cropToObjectPosition(crop), objectScale: cropToScale(crop) }
       } catch {
-        return { src, cellClass: '' as CellClass, objectPosition: cropToObjectPosition(crop), objectScale: cropToScale(crop) }
+        return { src, previewSrc: src, cellClass: '' as CellClass, objectPosition: cropToObjectPosition(crop), objectScale: cropToScale(crop) }
       }
     }))
   } catch {
@@ -103,17 +107,16 @@ export async function getAlbums(): Promise<AlbumData[]> {
         readAlbumPhotoInfos(meta.slug),
         getAlbumPhotoMeta(meta.slug),
       ])
-      const [coverPreview, previews] = await Promise.all([
-        ensureImageVariant(cover, 'hero-cover'),
-        Promise.all(photos.slice(0, 4).map(photo => ensureImageVariant(photo.src, 'album-preview'))),
-      ])
+      const coverPreview = await ensureImageVariant(cover, 'hero-cover')
       return {
         ...meta,
+        label: albumPhotoMeta.label ?? meta.label,
+        sub: albumPhotoMeta.sub ?? meta.sub,
         cover,
         coverPreview,
         coverPosition: cropToObjectPosition(albumPhotoMeta.coverCrop),
         coverScale: cropToScale(albumPhotoMeta.coverCrop),
-        previews,
+        previews: photos.slice(0, 4).map(p => p.previewSrc),
         photos,
       }
     })
@@ -129,18 +132,17 @@ export async function getAlbum(slug: string): Promise<AlbumData | undefined> {
     readAlbumPhotoInfos(slug),
     getAlbumPhotoMeta(slug),
   ])
-  const [coverPreview, previews] = await Promise.all([
-    ensureImageVariant(cover, 'hero-cover'),
-    Promise.all(photos.slice(0, 4).map(photo => ensureImageVariant(photo.src, 'album-preview'))),
-  ])
+  const coverPreview = await ensureImageVariant(cover, 'hero-cover')
 
   return {
     ...meta,
+    label: albumPhotoMeta.label ?? meta.label,
+    sub: albumPhotoMeta.sub ?? meta.sub,
     cover,
     coverPreview,
     coverPosition: cropToObjectPosition(albumPhotoMeta.coverCrop),
     coverScale: cropToScale(albumPhotoMeta.coverCrop),
-    previews,
+    previews: photos.slice(0, 4).map(p => p.previewSrc),
     photos,
   }
 }
